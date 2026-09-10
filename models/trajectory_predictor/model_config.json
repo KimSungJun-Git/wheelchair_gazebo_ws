@@ -1,0 +1,14 @@
+{
+  "model_name": "TrajectoryGRU",
+  "input_size": 2,
+  "hidden_size": 48,
+  "num_layers": 2,
+  "future_steps": 20,
+  "best_ade_m": 0.2979043126106262,
+  "best_fde_m": 0.5944850444793701,
+  "cv_ade_m": 0.35045039653778076,
+  "cv_fde_m": 0.739834725856781,
+  "ade_gain_pct": 14.99387201335061,
+  "fde_gain_pct": 19.646236692808067,
+  "trained_at": "2026-09-06 20:48:23"
+}

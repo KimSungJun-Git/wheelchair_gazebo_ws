@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo } = React;
+// React 훅은 api.jsx에서 선언됨 (전역 스코프 재선언 금지)
 const { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } = window.Recharts;
 
 function StatCard({ label, value, sub, accent, foot, icon }) {

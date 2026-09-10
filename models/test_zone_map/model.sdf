@@ -1,0 +1,360 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="test_zone_map">
+    <static>true</static>
+    <allow_auto_disable>true</allow_auto_disable>
+
+    <!-- ================================================================ -->
+    <!-- 직선 하강형 점진적 확장 5-Zone 맵 (14m × 30m)                      -->
+    <!-- 상단 좁은 복도(4m) → 점진 확장(6m→10m) → 대형 오픈(14m) → 회복(6m) -->
+    <!-- LiDAR range_max=3.5m 절대 기준, Footprint 0.28×0.31m 기준          -->
+    <!--                                                                    -->
+    <!-- 경로: START(7,28) ↓ Z1 ↓ Z2 ↓ Z3(step1→step2) ↓ Z4(Open) ↓ Z5 ↓ GOAL -->
+    <!-- ================================================================ -->
+
+    <!-- ============================================================ -->
+    <!--  벽체 1~20: 폐곡선 외곽 (시계 방향, 0.1m 모듈식 오버랩 보장)     -->
+    <!-- ============================================================ -->
+
+    <!-- 1. north_wall: Y=30, X: 5-9 (상단 복도 뚜껑) -->
+    <link name="north_wall">
+      <pose>7.0 30.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>4.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>4.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 2. z12_east_wall: X=9, Y: 22-30 (Zone 1+2 동쪽 복도벽) -->
+    <link name="z12_east_wall">
+      <pose>9.0 26.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 8.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 8.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 3. z3s1_east_cap: Y=22, X: 9-10 (Step1 동쪽 단차벽) -->
+    <link name="z3s1_east_cap">
+      <pose>9.5 22.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>1.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>1.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 4. z3s1_east_wall: X=10, Y: 19-22 (Step1 동쪽 벽) -->
+    <link name="z3s1_east_wall">
+      <pose>10.0 20.5 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 3.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 3.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 5. z3s2_east_cap: Y=19, X: 10-12 (Step2 동쪽 단차벽) -->
+    <link name="z3s2_east_cap">
+      <pose>11.0 19.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>2.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>2.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 6. z3s2_east_wall: X=12, Y: 16-19 (Step2 동쪽 벽) -->
+    <link name="z3s2_east_wall">
+      <pose>12.0 17.5 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 3.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 3.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 7. z4_east_cap: Y=16, X: 12-14 (Zone4 동쪽 단차벽) -->
+    <link name="z4_east_cap">
+      <pose>13.0 16.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>2.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>2.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 8. z4_east_wall: X=14, Y: 4-16 (Zone4 동쪽 외벽) -->
+    <link name="z4_east_wall">
+      <pose>14.0 10.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 12.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 12.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 9. z5_east_block: Y=4, X: 10-14 (Zone5 진입 동쪽 차단벽) -->
+    <link name="z5_east_block">
+      <pose>12.0 4.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>4.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>4.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 10. z5_east_wall: X=10, Y: 0-4 (Zone5 동쪽 벽) -->
+    <link name="z5_east_wall">
+      <pose>10.0 2.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 4.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 4.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 11. south_wall: Y=0, X: 4-10 (Zone5 바닥벽) -->
+    <link name="south_wall">
+      <pose>7.0 0.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>6.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>6.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 12. z5_west_wall: X=4, Y: 0-4 (Zone5 서쪽 벽) -->
+    <link name="z5_west_wall">
+      <pose>4.0 2.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 4.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 4.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 13. z5_west_block: Y=4, X: 0-4 (Zone5 진입 서쪽 차단벽) -->
+    <link name="z5_west_block">
+      <pose>2.0 4.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>4.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>4.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 14. z4_west_wall: X=0, Y: 4-16 (Zone4 서쪽 외벽) -->
+    <link name="z4_west_wall">
+      <pose>0.0 10.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 12.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 12.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 15. z4_west_cap: Y=16, X: 0-2 (Zone4 서쪽 단차벽) -->
+    <link name="z4_west_cap">
+      <pose>1.0 16.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>2.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>2.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 16. z3s2_west_wall: X=2, Y: 16-19 (Step2 서쪽 벽) -->
+    <link name="z3s2_west_wall">
+      <pose>2.0 17.5 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 3.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 3.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 17. z3s2_west_cap: Y=19, X: 2-4 (Step2 서쪽 단차벽) -->
+    <link name="z3s2_west_cap">
+      <pose>3.0 19.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>2.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>2.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 18. z3s1_west_wall: X=4, Y: 19-22 (Step1 서쪽 벽) -->
+    <link name="z3s1_west_wall">
+      <pose>4.0 20.5 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 3.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 3.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 19. z3s1_west_cap: Y=22, X: 4-5 (Step1 서쪽 단차벽) -->
+    <link name="z3s1_west_cap">
+      <pose>4.5 22.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>1.2 0.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>1.2 0.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.45 0.5 0.55 1.0</ambient>
+          <diffuse>0.65 0.7 0.75 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 20. z12_west_wall: X=5, Y: 22-30 (Zone 1+2 서쪽 복도벽) -->
+    <link name="z12_west_wall">
+      <pose>5.0 26.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.2 8.2 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.2 8.2 2.0</size></box></geometry>
+        <material>
+          <ambient>0.4 0.45 0.5 1.0</ambient>
+          <diffuse>0.6 0.65 0.7 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- ============================================================ -->
+    <!--  Zone 5 비대칭 정적 랜드마크 (AMCL Relocalization 유도)         -->
+    <!-- ============================================================ -->
+
+    <!-- 21. z5_landmark_1: 북서측 원기둥 -->
+    <link name="z5_landmark_cyl_nw">
+      <pose>5.5 3.2 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>2.0</length></cylinder></geometry></collision>
+      <visual name="visual">
+        <geometry><cylinder><radius>0.25</radius><length>2.0</length></cylinder></geometry>
+        <material>
+          <ambient>0.7 0.3 0.1 1.0</ambient>
+          <diffuse>0.85 0.4 0.15 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Orange</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 22. z5_landmark_2: 북동측 사각기둥 -->
+    <link name="z5_landmark_box_ne">
+      <pose>8.5 3.2 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.5 0.5 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.5 0.5 2.0</size></box></geometry>
+        <material>
+          <ambient>0.7 0.3 0.1 1.0</ambient>
+          <diffuse>0.85 0.4 0.15 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Orange</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 23. z5_landmark_3: 남서측 사각기둥 -->
+    <link name="z5_landmark_box_sw">
+      <pose>5.5 1.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><box><size>0.5 0.5 2.0</size></box></geometry></collision>
+      <visual name="visual">
+        <geometry><box><size>0.5 0.5 2.0</size></box></geometry>
+        <material>
+          <ambient>0.7 0.3 0.1 1.0</ambient>
+          <diffuse>0.85 0.4 0.15 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Orange</name></script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 24. z5_landmark_4: 남동측 원기둥 -->
+    <link name="z5_landmark_cyl_se">
+      <pose>8.5 1.0 1.0 0 0 0</pose>
+      <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>2.0</length></cylinder></geometry></collision>
+      <visual name="visual">
+        <geometry><cylinder><radius>0.25</radius><length>2.0</length></cylinder></geometry>
+        <material>
+          <ambient>0.7 0.3 0.1 1.0</ambient>
+          <diffuse>0.85 0.4 0.15 1.0</diffuse>
+          <script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Orange</name></script>
+        </material>
+      </visual>
+    </link>
+
+  </model>
+</sdf>

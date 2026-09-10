@@ -1,0 +1,138 @@
+# zones_definition.yaml
+# 직선 하강형 점진적 확장 5-Zone 맵 (14m × 30m)
+# LiDAR range_max=3.5m 절대 기준, Footprint 0.28×0.31m 기준
+
+map_info:
+  width: 14.0     # meters (X: 0.0 ~ 14.0m)
+  height: 30.0    # meters (Y: 0.0 ~ 30.0m)
+  wall_height: 2.0
+  lidar_range_max: 3.5
+  lidar_range_min: 0.12
+  lidar_real_ref: 2.48
+  robot_footprint: "0.281 x 0.306 m"
+
+zones:
+  zone_1_normal:
+    direction: "남쪽 (-Y)"
+    description: "정상 Nav2 주행, 정적 장애물 S자 회피 (4m × 4m 복도)"
+    x_min: 5.0
+    x_max: 9.0
+    y_min: 26.0
+    y_max: 30.0
+    corridor_width: 4.0
+    center_x: 7.0
+    wall_distance_from_center: 2.0
+    lidar_visibility: "양쪽 벽 모두 2.0m → 3.5m 이내, 완전 관측"
+
+  zone_2_dynamic:
+    direction: "남쪽 (-Y)"
+    description: "동적 장애물 횡단 회피 (4m × 4m 복도, AMCL 정상)"
+    x_min: 5.0
+    x_max: 9.0
+    y_min: 22.0
+    y_max: 26.0
+    corridor_width: 4.0
+    center_x: 7.0
+    wall_distance_from_center: 2.0
+    lidar_visibility: "양쪽 벽 모두 2.0m → 완전 관측, AMCL 100% 정상"
+
+  zone_3_transition:
+    direction: "남쪽 (-Y)"
+    description: "Feature 점진적 감소 (2단계 계단식 확장: 4m→6m→10m)"
+    step_1:
+      x_min: 4.0
+      x_max: 10.0
+      y_min: 19.0
+      y_max: 22.0
+      width: 6.0
+      wall_distance: 3.0
+      lidar: "양쪽 벽 3.0m → 관측 가능, feature 감소 시작"
+    step_2:
+      x_min: 2.0
+      x_max: 12.0
+      y_min: 16.0
+      y_max: 19.0
+      width: 10.0
+      wall_distance: 5.0
+      lidar: "양쪽 벽 5.0m → 관측 불가, 단차벽 모서리만 3.3m에서 감지"
+
+  zone_4_large_open:
+    direction: "남쪽 (-Y)"
+    description: "14m × 12m 대형 광장 (정적 장애물 0개, LiDAR 반환 0개)"
+    x_min: 0.0
+    x_max: 14.0
+    y_min: 4.0
+    y_max: 16.0
+    width: 14.0
+    height: 12.0
+    center: {x: 7.0, y: 10.0}
+    wall_distance_from_center: "min 6.0m (모든 방향)"
+    lidar_visibility: "중앙에서 사방 벽 6.0m > 3.5m → LiDAR 반환 0개"
+    localization_degradation: "AMCL 입자 발산 확정, Fallback 네비게이션 구간"
+
+  zone_5_recovery:
+    direction: "남쪽 (-Y)"
+    description: "비대칭 정적 랜드마크 4개 밀집 구역 (6m × 4m, AMCL Relocalization)"
+    x_min: 4.0
+    x_max: 10.0
+    y_min: 0.0
+    y_max: 4.0
+    corridor_width: 6.0
+    center_x: 7.0
+    wall_distance_from_center: 3.0
+    lidar_visibility: "양쪽 벽 3.0m + 기둥 4개 → 풍부한 feature, AMCL 즉시 수렴"
+
+test_waypoints:
+  START:
+    x: 7.0
+    y: 28.0
+    yaw: -1.5707  # 남쪽 방향
+    zone: zone_1_normal
+
+  Z2_ENTRY:
+    x: 7.0
+    y: 25.0
+    yaw: -1.5707
+    zone: zone_2_dynamic
+
+  Z3_ENTRY:
+    x: 7.0
+    y: 21.0
+    yaw: -1.5707
+    zone: zone_3_transition
+
+  Z4_ENTRY:
+    x: 7.0
+    y: 15.0
+    yaw: -1.5707
+    zone: zone_4_large_open
+
+  Z4_CENTER:
+    x: 7.0
+    y: 10.0
+    yaw: -1.5707
+    description: "Core Zone 정중앙 (사방 벽 거리 6m, Localization Degraded)"
+
+  Z5_ENTRY:
+    x: 7.0
+    y: 3.5
+    yaw: -1.5707
+    zone: zone_5_recovery
+
+  GOAL:
+    x: 7.0
+    y: 0.5
+    yaw: -1.5707
+    zone: zone_5_recovery
+
+obstacles:
+  zone_1_static:
+    - {name: obs_1_1, x: 7.0, y: 28.5, desc: "직진 정면 차단"}
+    - {name: obs_1_2, x: 6.0, y: 27.0, desc: "좌측 차단 (우측 우회 유도)"}
+    - {name: obs_1_3, x: 8.0, y: 25.5, desc: "우측 차단 (좌측 우회 유도)"}
+  zone_2_dynamic:
+    - {name: dynamic_obs_1, x: 7.0, y: 25.0, axis: x, range: [5.5, 8.5]}
+    - {name: dynamic_obs_2, x: 7.0, y: 23.0, axis: x, range: [5.5, 8.5]}
+  zone_5_straight:
+    - {name: obs_5_1, x: 7.0, y: 2.8, desc: "직진 경로 정면 차단"}
+    - {name: obs_5_2, x: 7.0, y: 1.5, desc: "목표점 직전 정면 차단"}

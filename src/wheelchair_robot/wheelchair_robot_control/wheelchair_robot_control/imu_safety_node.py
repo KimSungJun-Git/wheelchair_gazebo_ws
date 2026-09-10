@@ -56,7 +56,10 @@ class ImuSafetyNode(Node):
             tilt_danger = False
         else:
             tilt_danger = abs(roll) > self.tilt_threshold_deg or abs(pitch) > self.tilt_threshold_deg
-        self.get_logger().info(f'실시간 각도 -> Roll: {roll:.2f}°, Pitch: {pitch:.2f}° | 회전중: {is_spinning}')
+        # IMU는 50~100Hz로 들어온다. 매 콜백 출력하면 터미널과 /rosout이 도배된다.
+        self.get_logger().info(
+            f'실시간 각도 -> Roll: {roll:.2f}°, Pitch: {pitch:.2f}° | 회전중: {is_spinning}',
+            throttle_duration_sec=1.0)
         
         impact_danger = accel_mag > self.impact_threshold
 

@@ -160,7 +160,6 @@ function ObstacleProximity({ distances }) {
   });
 
   const active = maxLevel > 0;
-  const dirLabel = { front: '전방', frontLeft: '좌전방', frontRight: '우전방', left: '좌측', right: '우측' };
   const dirColor = maxLevel >= 3 ? '#E5484D' : maxLevel === 2 ? '#F97316' : '#F8FAFC';
 
   // SVG wedge: 휠체어 중심 5방향 부채꼴.
@@ -205,9 +204,9 @@ function ObstacleProximity({ distances }) {
       animation: active && maxLevel >= 3 ? 'obstacleShake 0.4s ease-in-out infinite' : undefined,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', letterSpacing: 1.5 }}>주변 장애물</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', letterSpacing: 1.5 }}>{TXT.obsTitle}</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: active ? dirColor : '#64748B', padding: '2px 8px', borderRadius: 999, background: active ? `${dirColor}22` : 'rgba(148,163,184,0.12)' }}>
-          {active ? '감지됨' : '안전'}
+          {active ? TXT.obsDetected : TXT.obsSafe}
         </span>
       </div>
       <svg viewBox="0 0 180 140" width="100%" height="124" style={{ display: 'block' }}>
@@ -226,7 +225,7 @@ function ObstacleProximity({ distances }) {
       </svg>
       <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 13, fontWeight: 800, color: active ? dirColor : '#64748B' }}>
-          {active ? `${dirLabel[nearestKey] || ''} 접근` : '주변 양호'}
+          {active ? TXT.obsApproach(TXT.dirLabel[nearestKey] || '') : TXT.obsClear}
         </span>
         {active && isFinite(nearestDist) && (
           <span style={{ fontSize: 14, fontWeight: 800, color: '#F8FAFC', fontVariantNumeric: 'tabular-nums' }}>

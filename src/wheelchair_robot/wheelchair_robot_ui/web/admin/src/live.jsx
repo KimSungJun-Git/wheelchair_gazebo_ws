@@ -228,7 +228,7 @@ function LivePage({ lang = "ko" }) {
                 </div>
                 <button className="btn ghost sm" onClick={() => {
                   setStopped(false);
-                  if (window.ros && window.ROSLIB) {
+                  if (window.rosConnected && window.ROSLIB) {
                     const modePub = new window.ROSLIB.Topic({
                       ros: window.ros, name: '/mode_switch', messageType: 'std_msgs/String'
                     });
@@ -254,15 +254,13 @@ function LivePage({ lang = "ko" }) {
             </div>
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => setConfirmStop(false)}>{window.dict[lang].lv_cancel}</button>
-              <button className="btn danger" onClick={() => { 
-                setConfirmStop(false); 
-                setStopped(true); 
-                if (window.ros && window.ROSLIB) {
-                  const sosPub = new window.ROSLIB.Topic({
-                    ros: window.ros, name: '/sos_trigger', messageType: 'std_msgs/String'
-                  });
-                  sosPub.publish(new window.ROSLIB.Message({ data: 'manual_stop' }));
-                }
+              <button className="btn danger" onClick={async () => {
+                setConfirmStop(false);
+                // 전송에 성공했을 때만 "정지됨"으로 표시한다.
+                // 실패했는데 정지된 것처럼 보이는 게 이 화면에서 제일 위험하다.
+                const ok = await window.Api.remoteStop();
+                if (ok) setStopped(true);
+                else alert(window.dict[lang].lv_stop_failed);
               }}>
                 <Icon name="Hand" size={14} /> {window.dict[lang].lv_execute}
               </button>

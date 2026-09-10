@@ -1,0 +1,122 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="Local_0904_world">
+    <!-- 태양광 조명 -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- 바닥 (Ground Plane) -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Local_0904 맵 모델 (벽체) -->
+    <include>
+      <uri>model://Local_0904</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+
+
+    <!-- ================================================================ -->
+    <!-- [1] 정적 장애물 11개 (Static Obstacles - 월드 기본 포함)             -->
+    <!-- ================================================================ -->
+    <!-- static_obs_1 -->
+    <include>
+      <name>static_obs_1</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-8.0 -6.75 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_2 -->
+    <include>
+      <name>static_obs_2</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-7.95 -2.6 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_3 -->
+    <include>
+      <name>static_obs_3</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-7.75 1.65 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_4 -->
+    <include>
+      <name>static_obs_4</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-7.75 6.35 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_5 -->
+    <include>
+      <name>static_obs_5</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-3.95 5.7 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_6 -->
+    <include>
+      <name>static_obs_6</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>-3.9 -3.65 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_7 -->
+    <include>
+      <name>static_obs_7</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>1.7 -8.2 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_8 -->
+    <include>
+      <name>static_obs_8</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>9.7 6.4 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_9 -->
+    <include>
+      <name>static_obs_9</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>13.8 -5.85 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_10 -->
+    <include>
+      <name>static_obs_10</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>19.8 3.65 0.01 0 0 0.0</pose>
+    </include>
+    <!-- static_obs_11 -->
+    <include>
+      <name>static_obs_11</name>
+      <uri>model://static_box_obstacle</uri>
+      <pose>19.9 -4.5 0.01 0 0 0.0</pose>
+    </include>
+
+    <!-- 물리 엔진 설정 (ODE 최적화) -->
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>150</iters>
+          <precon_iters>0</precon_iters>
+          <sor>1.4</sor>
+          <use_dynamic_moi_rescaling>1</use_dynamic_moi_rescaling>
+        </solver>
+        <constraints>
+          <cfm>0.00001</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>2000.0</contact_max_correcting_vel>
+          <contact_surface_layer>0.01</contact_surface_layer>
+        </constraints>
+      </ode>
+    </physics>
+
+    <!-- GUI 초기 카메라 조감도 시점 (가로 34m x 세로 20m 전체 조감) -->
+    <gui fullscreen="0">
+      <camera name="overview_camera">
+        <pose>6.5 -0.5 42.0 0.0 1.5707 1.5707</pose>
+        <view_controller>orbit</view_controller>
+      </camera>
+    </gui>
+  </world>
+</sdf>

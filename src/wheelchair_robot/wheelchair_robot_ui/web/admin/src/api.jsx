@@ -1,9 +1,34 @@
-// API client + offline parser.
-// First tries the FastAPI server at API_BASE. If unreachable, falls back to
-// parsing bundled sample_data/*.json client-side using the same normalization
-// rules as server.py — so the design preview works without a backend.
+// 관제 대시보드 API 클라이언트 + rosbridge 연결.
+//
+// 이 파일이 Dashboard.html에서 가장 먼저 로드되므로, 모든 .jsx가 공유하는
+// 전역 선언(React 훅, dict 접근자)도 여기서 한 번만 한다.
+//   ⚠️ 각 <script type="text/babel">는 같은 전역 스코프에서 실행된다.
+//      여러 파일에서 `const useState = ...`를 각각 선언하면
+//      "Identifier 'useState' has already been declared"로 뒤 파일이 통째로 죽는다.
+const { useState, useEffect, useMemo, useRef } = React;
 
-const API_BASE = "http://localhost:8090";
+// 백엔드/rosbridge는 이 페이지를 서빙한 호스트에 있다.
+// (localhost 하드코딩 시 태블릿·다른 PC에서 열면 자기 자신을 찾아가 실패)
+const API_BASE = `http://${window.location.hostname}:8090`;
+const ROS_URL = `ws://${window.location.hostname}:9090`;
+
+// ─── rosbridge 연결 ────────────────────────────────────────────────
+// shell.jsx(SOS/안전 토스트), live.jsx(원격 정지), reports.jsx(로그 분리)가
+// window.ros를 쓴다. 여기서 만들지 않으면 그 기능들이 전부 조용히 죽는다.
+window.rosConnected = false;
+function setRosState(ok) {
+  window.rosConnected = ok;
+  window.dispatchEvent(new CustomEvent("ros-state", { detail: ok }));
+}
+if (window.ROSLIB) {
+  const ros = new ROSLIB.Ros({ url: ROS_URL });
+  ros.on("connection", () => setRosState(true));
+  ros.on("error", () => setRosState(false));
+  ros.on("close", () => setRosState(false));
+  window.ros = ros;
+} else {
+  console.error("ROSLIB 미로드 — Dashboard.html의 roslib 스크립트를 확인하세요.");
+}
 
 const REASON_LABEL = {
   imu_lost: "IMU 연결 끊김",
@@ -27,17 +52,15 @@ const ACTION_SEVERITY = {
   modified: "warning",
   allowed: "info",
 };
-const DEDUP_WINDOW_SEC = 5.0;
 
-const SAMPLE_FILES = [
-  "sample_data/[주행로그]_2026-05-06_21-41-01.json",
-];
-
-let _cache = null;
-let _serverUp = null;
+// 서버 상태 캐시. 무기한 캐싱하면 server.py를 나중에 켜도 새로고침 전까지
+// 계속 오프라인으로 보이므로 짧은 TTL을 둔다.
+const PROBE_TTL_MS = 5000;
+let _serverUp = false;
+let _probedAt = 0;
 
 async function probeServer() {
-  if (_serverUp !== null) return _serverUp;
+  if (Date.now() - _probedAt < PROBE_TTL_MS) return _serverUp;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 700);
@@ -47,290 +70,97 @@ async function probeServer() {
   } catch (_e) {
     _serverUp = false;
   }
+  _probedAt = Date.now();
   return _serverUp;
 }
 
-function normalizeReason(raw) {
-  raw = (raw || "").trim();
-  if (!raw) return { key: "", raw: "" };
-  const first = raw.split(",")[0].trim();
-  const key = first.split(":")[0].trim();
-  return { key, raw };
+// 백엔드가 꺼져 있을 때 돌려줄 빈 응답.
+// (예전에는 sample_data/*.json을 파싱해 가짜 화면을 만들었지만
+//  그 폴더가 존재하지 않아 조용히 빈 화면만 나왔다 → 정직한 오프라인 상태로 대체)
+const EMPTY_EVENTS = {
+  window_hours: 24,
+  by_day: [],
+  by_hour: [],
+  by_severity: {},
+  reasons: [],
+  total_events: 0,
+  recent_count: 0,
+  events: [],
+  sessions: [],
+  session_count: 0,
+  avg_confidence: null,
+};
+
+async function getJson(path, fallback) {
+  if (!(await probeServer())) return fallback;
+  try {
+    const r = await fetch(`${API_BASE}${path}`);
+    if (!r.ok) return fallback;
+    return await r.json();
+  } catch (_e) {
+    return fallback;
+  }
 }
-
-function dedupMessages(logs) {
-  const seen = new Set();
-  const out = [];
-  for (const l of logs) {
-    const k = `${l.timestamp}|${l.source}|${l.action}|${l.reason}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(l);
-  }
-  return out;
-}
-
-function parseJsonl(text) {
-  const markers = [];
-  const logs = [];
-  for (const line of text.split("\n")) {
-    const t = line.trim();
-    if (!t) continue;
-    try {
-      const obj = JSON.parse(t);
-      if (obj._event_marker) markers.push(obj);
-      else logs.push(obj);
-    } catch (_e) {}
-  }
-  return { markers, logs };
-}
-
-function summarize(filename, jsonText, mdText) {
-  const sessionId = filename.replace(/\.json$/, "").split("/").pop();
-  const { logs: rawLogs } = parseJsonl(jsonText);
-  const logs = dedupMessages(rawLogs);
-
-  if (!logs.length) {
-    return {
-      id: sessionId,
-      filename: filename.split("/").pop(),
-      started_at: null,
-      ended_at: null,
-      duration_sec: 0,
-      total: 0,
-      counts: { blocked: 0, modified: 0, sos: 0, allowed: 0 },
-      events: [],
-      reasons: {},
-      confidence: null,
-      has_md: !!mdText,
-      raw_lines: [],
-    };
-  }
-
-  const tss = logs.map((l) => l.timestamp).filter(Boolean);
-  const started = Math.min(...tss);
-  const ended = Math.max(...tss);
-
-  const counts = { blocked: 0, modified: 0, sos: 0, allowed: 0 };
-  for (const l of logs) counts[l.action] = (counts[l.action] || 0) + 1;
-
-  const events = [];
-  let lastKey = null;
-  let lastT = 0;
-  for (const l of logs) {
-    if (!["blocked", "modified", "sos"].includes(l.action)) continue;
-    const { key, raw } = normalizeReason(l.reason || "");
-    const ts = l.timestamp || 0;
-    const k = `${l.action}|${key}`;
-    if (k === lastKey && ts - lastT < DEDUP_WINDOW_SEC) continue;
-    const pose = l.pose || {};
-    const zoneRaw = l.zone || "";
-    events.push({
-      ts,
-      action: l.action,
-      severity: ACTION_SEVERITY[l.action] || "info",
-      reason_key: key,
-      reason_label: REASON_LABEL[key] || key || "원인불명",
-      reason_raw: raw,
-      pose: { x: pose.x ?? null, y: pose.y ?? null, yaw: pose.yaw ?? null },
-      zone: zoneRaw.split("|")[0].trim() || null,
-      source: l.source || null,
-    });
-    lastKey = k;
-    lastT = ts;
-  }
-
-  const reasons = {};
-  for (const e of events) {
-    if (e.reason_key) reasons[e.reason_key] = (reasons[e.reason_key] || 0) + 1;
-  }
-
-  let confidence = null;
-  if (mdText) {
-    const m = mdText.match(/AI\s*신뢰도[\s|:🎯]*[\|\s]*(\d+)\s*%?/);
-    if (m) confidence = parseInt(m[1], 10);
-  }
-
-  return {
-    id: sessionId,
-    filename: filename.split("/").pop(),
-    started_at: started,
-    ended_at: ended,
-    duration_sec: ended - started,
-    total: logs.length,
-    counts,
-    events,
-    reasons,
-    confidence,
-    has_md: !!mdText,
-    raw_lines: logs.slice(0, 2000),
-    raw_truncated: logs.length > 2000,
-    markdown: mdText || null,
-  };
-}
-
-async function loadSamples() {
-  if (_cache) return _cache;
-  const out = [];
-  for (const path of SAMPLE_FILES) {
-    try {
-      const json = await fetch(path).then((r) => r.text());
-      const mdPath = path.replace(/\.json$/, "_report.md");
-      let md = null;
-      try {
-        md = await fetch(mdPath).then((r) => (r.ok ? r.text() : null));
-      } catch (_e) {}
-      out.push(summarize(path, json, md));
-    } catch (e) {
-      console.error("sample load failed", path, e);
-    }
-  }
-  _cache = out;
-  return out;
-}
-
-function bucketEvents(events, hours) {
-  const cutoff = Date.now() / 1000 - hours * 3600;
-  const recent = events.filter((e) => e.ts >= cutoff);
-
-  const byDay = {};
-  const byHour = {};
-  const reasonC = {};
-  const sev = { critical: 0, warning: 0, info: 0 };
-
-  for (const e of events) {
-    sev[e.severity] = (sev[e.severity] || 0) + 1;
-    if (e.reason_key) reasonC[e.reason_key] = (reasonC[e.reason_key] || 0) + 1;
-    const d = new Date(e.ts * 1000);
-    const dayKey = `${String(d.getMonth() + 1).padStart(2, "0")}/${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
-    const hourKey = `${dayKey} ${String(d.getHours()).padStart(2, "0")}:00`;
-    if (!byDay[dayKey]) byDay[dayKey] = { day: dayKey, critical: 0, warning: 0 };
-    if (e.severity === "critical" || e.severity === "warning")
-      byDay[dayKey][e.severity]++;
-    if (!byHour[hourKey])
-      byHour[hourKey] = { hour: hourKey, critical: 0, warning: 0, info: 0 };
-    byHour[hourKey][e.severity] = (byHour[hourKey][e.severity] || 0) + 1;
-  }
-
-  return {
-    by_day: Object.values(byDay).sort((a, b) => a.day.localeCompare(b.day)),
-    by_hour: Object.values(byHour).sort((a, b) => a.hour.localeCompare(b.hour)),
-    by_severity: sev,
-    reasons: Object.entries(reasonC)
-      .map(([key, count]) => ({
-        key,
-        label: REASON_LABEL[key] || key,
-        count,
-      }))
-      .sort((a, b) => b.count - a.count),
-    total_events: events.length,
-    recent_count: recent.length,
-  };
-}
-
 
 const Api = {
   REASON_LABEL,
   ACTION_LABEL,
   ACTION_SEVERITY,
+  API_BASE,
 
   async getMode() {
-    const up = await probeServer();
-    return up ? "live" : "sample";
+    return (await probeServer()) ? "live" : "offline";
   },
 
-  async getHealth() {
-    if (await probeServer()) {
-      return fetch(`${API_BASE}/api/health`).then((r) => r.json());
-    }
-    const samples = await loadSamples();
-    return {
-      ok: true,
-      mode: "sample",
-      data_dir: "(브라우저 샘플 모드 — server.py 미실행)",
-      exists: true,
-      session_count: samples.length,
-      latest: samples[0]?.filename || null,
-    };
+  getHealth() {
+    return getJson("/api/health", {
+      ok: false,
+      mode: "offline",
+      data_dir: null,
+      exists: false,
+      session_count: 0,
+      latest: null,
+    });
   },
 
-  async getReports() {
-    if (await probeServer()) {
-      return fetch(`${API_BASE}/api/reports`).then((r) => r.json());
-    }
-    const samples = await loadSamples();
-    return {
-      reports: samples.map(({ events, raw_lines, markdown, ...rest }) => rest),
-      count: samples.length,
-    };
+  getReports() {
+    return getJson("/api/reports", { reports: [], count: 0 });
   },
 
-  async getReport(id) {
-    if (await probeServer()) {
-      return fetch(`${API_BASE}/api/report/${encodeURIComponent(id)}`).then((r) =>
-        r.json()
-      );
-    }
-    const samples = await loadSamples();
-    const s = samples.find((x) => x.id === id) || samples[0];
-    return s;
+  getReport(id) {
+    return getJson(`/api/report/${encodeURIComponent(id)}`, null);
   },
 
-  async getEvents(hours = 24) {
-    if (await probeServer()) {
-      return fetch(`${API_BASE}/api/events?hours=${hours}`).then((r) => r.json());
-    }
-    const samples = await loadSamples();
-    const all = [];
-    const sessions = [];
-    let confSum = 0;
-    let confN = 0;
-    for (const s of samples) {
-      sessions.push({
-        id: s.id,
-        started_at: s.started_at,
-        duration_sec: s.duration_sec,
-        counts: s.counts,
-        confidence: s.confidence,
-      });
-      if (s.confidence != null) {
-        confSum += s.confidence;
-        confN++;
+  getEvents(hours = 24) {
+    return getJson(`/api/events?hours=${hours}`, { ...EMPTY_EVENTS, window_hours: hours });
+  },
+
+  getLive() {
+    return getJson("/api/live", { connected: false, events: [], pose: null });
+  },
+
+  // 원격 정지: rosbridge가 붙어 있으면 직접 발행, 아니면 백엔드에 위임.
+  // 둘 다 실패하면 반드시 false를 돌려준다 — 정지 안 됐는데 됐다고
+  // 표시하는 것이 이 화면에서 제일 위험하다.
+  async remoteStop() {
+    if (window.rosConnected && window.ros && window.ROSLIB) {
+      try {
+        new window.ROSLIB.Topic({
+          ros: window.ros,
+          name: "/sos_trigger",
+          messageType: "std_msgs/String",
+        }).publish(new window.ROSLIB.Message({ data: "manual_stop" }));
+        return true;
+      } catch (_e) {
+        /* 아래 HTTP 폴백으로 */
       }
-      for (const e of s.events) all.push({ ...e, session_id: s.id });
     }
-    const buckets = bucketEvents(all, hours);
-    return {
-      window_hours: hours,
-      ...buckets,
-      events: all,
-      sessions,
-      avg_confidence: confN ? Math.round(confSum / confN) : null,
-      session_count: sessions.length,
-    };
-  },
-
-  async getLive() {
-    if (await probeServer()) {
-      return fetch(`${API_BASE}/api/live`).then((r) => r.json());
+    try {
+      const r = await fetch(`${API_BASE}/api/remote_stop`, { method: "POST" });
+      return r.ok;
+    } catch (_e) {
+      return false;
     }
-    const samples = await loadSamples();
-    if (!samples.length) return { connected: false, events: [], pose: null };
-    const s = samples[0];
-    const last = s.raw_lines[s.raw_lines.length - 1] || {};
-    const pose = last.pose || {};
-    return {
-      connected: true,
-      session_id: s.id,
-      pose: { x: pose.x, y: pose.y, yaw: pose.yaw },
-      velocity: last.velocity || {},
-      zone_raw: last.zone || "",
-      zone: (last.zone || "").split("|")[0].trim() || null,
-      events: s.events.slice(-30).reverse(),
-      last_log_ts: last.timestamp,
-    };
   },
 };
 

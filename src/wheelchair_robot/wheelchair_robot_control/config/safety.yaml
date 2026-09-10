@@ -1,0 +1,40 @@
+# 안전 정지 / 워치독 튜닝값
+# 실기에서 조정한 값은 여기에 남긴다 (--ros-args 로만 바꾸면 기록이 사라진다)
+
+safety_stop_node:
+  ros__parameters:
+    # 전방 이 거리 안에 장애물이 있으면 전진만 0으로 (후진·회전은 허용)
+    danger_distance_m: 0.20
+    # 좌우 여유가 이보다 좁으면 '양측 막힘'으로 판정
+    clearance_min_m: 0.20
+    # 이 시간 넘게 /cmd_vel_nav가 없으면 idle로 기록
+    cmd_idle_timeout_sec: 1.0
+    # 동적 장애물(CPA 위협 /scan_threat) 정지 및 서행 설정
+    threat_stop_dist_m: 1.00    # 전방 정지 거리 [m] (1.2m -> 1.0m로 단축)
+    threat_stop_width_m: 0.70   # 전방 정지 폭 (±0.35m)
+    threat_slow_dist_m: 2.00    # 전방 감속 서행 거리 [m]
+    threat_slow_width_m: 0.90   # 전방 감속 서행 폭 (±0.45m)
+    threat_min_points: 2        # 위협 판정 최소 빔 개수
+    # 원본 /scan 초근접 긴급 비상정지 설정 (회피 시 오발동 방지)
+    emergency_scan_dist_m: 0.25   # 초근접 비상정지 거리 [m]
+    emergency_scan_width_m: 0.45  # 초근접 비상정지 폭 (±0.225m)
+
+mode_switch_node:
+  ros__parameters:
+    # 이 시간 넘게 명령이 끊기면 정지. Nav2 controller_frequency보다 넉넉해야
+    # 경로 재계획·제자리 회전 구간에서 주행이 끊기지 않는다.
+    cmd_timeout_sec: 0.5
+    # 6.3.1절 RANSAC 벽면 상대각 기반 헤딩 드리프트 억제 설정
+    wall_heading_constraint_enabled: true
+    parallel_wall_tol_deg: 6.0         # 좌우 벽 평행 판정 오차 허용각 (±6도)
+    wall_ransac_min_inliers: 12        # RANSAC 직선 인정 최소 인라이어 수
+    wall_meas_noise_r: 0.05            # R 관측 잡음 공분산 (RANSAC 각도 분산)
+    steering_cooldown_sec: 1.5         # 의도적 회피 선회 후 헤딩 락 비활성 쿨다운 (초)
+
+log_collector_node:
+  ros__parameters:
+    # 같은 상태가 반복될 때 최소 기록 간격
+    log_throttle_sec: 1.0
+    # /safety_action이 아예 끊긴 구간을 채우는 주기 (0이면 비활성)
+    heartbeat_sec: 1.0
+    snapshot_cooldown_sec: 5.0

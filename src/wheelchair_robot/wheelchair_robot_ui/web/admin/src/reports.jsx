@@ -55,7 +55,7 @@ function ReportsPage({ lang = "ko" }) {
     setDeepStatus({ status: 'starting' });
 
     try {
-      if (window.ros && window.ROSLIB) {
+      if (window.rosConnected && window.ROSLIB) {
         const rotationTopic = new window.ROSLIB.Topic({
           ros: window.ros,
           name: '/request_log_rotation',
@@ -138,7 +138,7 @@ function ReportsPage({ lang = "ko" }) {
               disabled={deepStatus?.status === 'running' || deepStatus?.status === 'starting'}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              🤖 최신 로그 R1 깊은 진단
+              {window.dict[lang].btn_deep_analyze}
             </button>
 
             {deepStatus && (
@@ -398,7 +398,7 @@ function ReportDetail({ report, showRaw, setShowRaw, shareOpen, setShareOpen, la
               <button className="btn ghost" onClick={() => setShareOpen(false)}>{window.dict[lang].lv_cancel}</button>
               <button className="btn primary" onClick={() => {
                 setShareOpen(false);
-                alert("보고서가 지정된 담당자 및 보호자에게 전송되었습니다.");
+                alert(window.dict[lang].share_sent);
               }}>{window.dict[lang].reports_share}</button>
             </div>
           </div>

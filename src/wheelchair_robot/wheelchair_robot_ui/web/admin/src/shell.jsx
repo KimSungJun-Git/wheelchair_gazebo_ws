@@ -1,14 +1,18 @@
-
-const { useState, useEffect } = React;
+// React 훅(useState 등)은 api.jsx에서 한 번만 선언한다.
+// 여기서 다시 const로 선언하면 전역 스코프 충돌로 이 파일 이후가 통째로 죽는다.
 
 // 전역 다국어 사전
 window.dict = {
   ko: {
     nav_admin: "관리",
     api_connected: "API 연결됨",
-    sample_mode: "샘플 모드",
+    offline_mode: "오프라인",
     session: "세션",
     server_not_running: "server.py 미실행",
+    ros_connected: "rosbridge 연결됨",
+    ros_disconnected: "rosbridge 끊김 — 실시간 알림·원격정지 제한",
+    share_sent: "보고서가 지정된 담당자 및 보호자에게 전송되었습니다.",
+    lv_stop_failed: "정지 명령 전송 실패 — rosbridge와 관제 서버를 확인하세요. 휠체어는 계속 주행 중일 수 있습니다.",
     logout: "로그아웃",
     backend_connected: "백엔드 연결됨",
     admin: "관리자",
@@ -134,9 +138,13 @@ window.dict = {
   en: {
     nav_admin: "Admin",
     api_connected: "API Connected",
-    sample_mode: "Sample Mode",
+    offline_mode: "Offline",
     session: "Session",
     server_not_running: "server.py not running",
+    ros_connected: "rosbridge connected",
+    ros_disconnected: "rosbridge down — live alerts & remote stop limited",
+    share_sent: "Report has been sent to the assigned staff and guardian.",
+    lv_stop_failed: "Failed to send stop command — check rosbridge and the admin server. The wheelchair may still be moving.",
     logout: "Logout",
     backend_connected: "Backend Connected",
     admin: "Admin",
@@ -261,10 +269,11 @@ window.dict = {
   }
 };
 
+// 라벨은 Sidebar의 navLabels[lang]에서 온다 (여기에 넣으면 번역이 안 됨)
 const NAV = [
-  { id: "overview", icon: "LayoutDashboard", label: "개요" },
-  { id: "reports", icon: "FileText", label: "보고서" },
-  { id: "live", icon: "Activity", label: "실시간 모니터" },
+  { id: "overview", icon: "LayoutDashboard" },
+  { id: "reports", icon: "FileText" },
+  { id: "live", icon: "Activity" },
 ];
 
 function Icon({ name, size = 18, className = "", strokeWidth = 1.75 }) {
@@ -295,7 +304,7 @@ function toKebab(s) {
   return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 }
 
-function Sidebar({ page, setPage, mode, health, onLogout, lang }) {
+function Sidebar({ page, setPage, mode, health, onLogout, lang, rosOk }) {
   const navLabels = {
     ko: { overview: "개요", reports: "보고서", live: "실시간 모니터" },
     en: { overview: "Overview", reports: "Reports", live: "Live Monitor" }
@@ -333,13 +342,17 @@ function Sidebar({ page, setPage, mode, health, onLogout, lang }) {
         <div className="fleet-card">
           <div className="fleet-card-row">
             <span className={`fleet-dot ${mode === "live" ? "ok" : "warn"}`} />
-            <span>{mode === "live" ? window.dict[lang].api_connected : window.dict[lang].sample_mode}</span>
+            <span>{mode === "live" ? window.dict[lang].api_connected : window.dict[lang].offline_mode}</span>
+          </div>
+          <div className="fleet-card-row">
+            <span className={`fleet-dot ${rosOk ? "ok" : "warn"}`} />
+            <span>{rosOk ? window.dict[lang].ros_connected : window.dict[lang].ros_disconnected}</span>
           </div>
           <div className="fleet-card-row mute">
             <span>{window.dict[lang].session} {health?.session_count ?? "—"}</span>
           </div>
           <div className="fleet-card-foot">
-            {mode === "live" ? "localhost:8090" : window.dict[lang].server_not_running}
+            {mode === "live" ? `${window.location.hostname}:8090` : window.dict[lang].server_not_running}
           </div>
         </div>
         <button className="logout" onClick={onLogout}>
@@ -378,12 +391,12 @@ function Header({ page, mode, health, lang, setLang }) {
           <div className="link-pill">
             <span className="link-dot" />
             <span className="link-label">{window.dict[lang].backend_connected}</span>
-            <span className="link-meta">localhost:8090</span>
+            <span className="link-meta">{window.location.hostname}:8090</span>
           </div>
         ) : (
           <div className="link-pill warn">
             <span className="link-dot warn" />
-            <span className="link-label">{window.dict[lang].sample_mode}</span>
+            <span className="link-label">{window.dict[lang].offline_mode}</span>
             <span className="link-meta">{window.dict[lang].server_not_running}</span>
           </div>
         )}
@@ -455,8 +468,15 @@ function App() {
   const [mode, setMode] = useState("sample");
   const [health, setHealth] = useState(null);
   const [lang, setLang] = useState("ko");
+  const [rosOk, setRosOk] = useState(!!window.rosConnected);
 
   const [alerts, setAlerts] = useState([]);
+
+  useEffect(() => {
+    const onRos = (e) => setRosOk(!!e.detail);
+    window.addEventListener("ros-state", onRos);
+    return () => window.removeEventListener("ros-state", onRos);
+  }, []);
 
   // 알림을 추가하는 함수 (8초 뒤 자동 삭제)
   const addAlert = (type, title, message) => {
@@ -524,14 +544,17 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
     let alive = true;
-    (async () => {
+    const poll = async () => {
       const m = await window.Api.getMode();
       const h = await window.Api.getHealth();
       if (!alive) return;
       setMode(m);
       setHealth(h);
-    })();
-    return () => { alive = false; };
+    };
+    poll();
+    // 나중에 server.py를 켜도 새로고침 없이 라이브로 전환되도록 주기 확인
+    const t = setInterval(poll, 10000);
+    return () => { alive = false; clearInterval(t); };
   }, [isLoggedIn]);
 
 
@@ -567,7 +590,7 @@ function App() {
       {/* ⭐️ 실시간 팝업 알림 렌더링 (화면 맨 위에 떠있음) ⭐️ */}
       <ToastAlerts alerts={alerts} removeAlert={(id) => setAlerts(prev => prev.filter(a => a.id !== id))} />
 
-      <Sidebar page={page} setPage={setPage} mode={mode} health={health} onLogout={handleLogout} lang={lang} />
+      <Sidebar page={page} setPage={setPage} mode={mode} health={health} onLogout={handleLogout} lang={lang} rosOk={rosOk} />
       <div className="main">
         <Header page={page} mode={mode} health={health} lang={lang} setLang={setLang} />
         <div className="content">

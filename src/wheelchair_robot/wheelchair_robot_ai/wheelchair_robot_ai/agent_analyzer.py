@@ -3,27 +3,18 @@
 import os
 import json
 import glob
-import sys
-import re
-from typing import TypedDict
 from collections import Counter
 from datetime import datetime
-from langgraph.graph import StateGraph, END
-from langchain_ollama import ChatOllama
-from langchain_core.prompts import PromptTemplate
 
-
-class AgentState(TypedDict, total=False):
-    raw_logs: str
-    analysis_report: str
-    summary: str
-
+LOG_DIR = os.path.expanduser('~/wheelchair_ws/driving_data')
 
 ACTION_LABEL: dict[str, str] = {
     "blocked":  "🚨 비상정지",
     "modified": "⚠️ 명령수정",
     "sos":      "🆘 SOS",
     "allowed":  "✅ 정상통과",
+    "idle":     "⏸️ 대기(명령없음)",
+    "heartbeat": "💓 상태기록",
 }
 
 REASON_LABEL: dict[str, str] = {
@@ -35,6 +26,19 @@ REASON_LABEL: dict[str, str] = {
     "odom_lost":              "오도메트리 끊김",
     "localization_emergency": "위치 추정 실패",
     "obstacle_front":         "전방 장애물",
+}
+
+# 정지가 불가피했는지, 피할 길이 있었는데 멈춘 건지 구분
+AVOID_LABEL: dict[str, str] = {
+    "left":    " (좌측 회피 가능했음)",
+    "right":   " (우측 회피 가능했음)",
+    "blocked": " (양측 모두 막힘 — 정지 불가피)",
+}
+
+# 자율주행 실패인지, 수동 조작 중 발생인지
+MODE_LABEL: dict[str, str] = {
+    "auto":   " [자율]",
+    "manual": " [수동]",
 }
 
 DEDUP_WINDOW_SEC = 5.0
@@ -100,6 +104,8 @@ def deduplicate_events(event_logs):
             "x": pose.get("x"),
             "y": pose.get("y"),
             "timestamp": ts,
+            "avoidance": log.get("avoidance"),
+            "mode": log.get("mode"),
             "raw": log,
         })
         last_key = key
@@ -132,6 +138,7 @@ def build_summary(all_logs):
             sensor_counter[r] += 1
     
     lines = []
+    lines_health: list[tuple] = []
     lines.append(f"## 📋 이벤트 요약{duration}")
     lines.append("")
     lines.append(f"- **총 메시지: {total}개** (중복 제거 후)")
@@ -147,6 +154,28 @@ def build_summary(all_logs):
             label = REASON_LABEL.get(reason, reason)
             lines.append(f"- {label} (`{reason}`): {count}건")
     
+    # 센서 끊김 구간 — "왜 멈췄나"를 이 로그만으로 답할 수 있게
+    health_spans: dict[str, list] = {}
+    for log in all_logs:
+        ts = log.get("timestamp")
+        for sensor, status in (log.get("sensor_health") or {}).items():
+            span = health_spans.get(sensor)
+            if span and ts - span[1] < DEDUP_WINDOW_SEC:
+                span[1] = ts
+            else:
+                health_spans[sensor] = [ts, ts]
+                lines_health.append((ts, sensor, status))
+
+    if lines_health:
+        lines.append("")
+        lines.append(f"### 🩺 센서 이상 구간 ({len(lines_health)}회)")
+        for ts, sensor, status in lines_health:
+            time_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+            # ultrasonic_front/left/right → ultrasonic_lost 로 라벨을 재사용
+            base = sensor.rsplit("_", 1)[0] if sensor.startswith("ultrasonic") else sensor
+            label = REASON_LABEL.get(f"{base}_lost", sensor)
+            lines.append(f"- {time_str} {label} (`{sensor}`) — {status}")
+
     if unique_events:
         lines.append("")
         lines.append(f"### 📍 사건 발생 위치 (전체 {len(unique_events)}건)")
@@ -159,24 +188,17 @@ def build_summary(all_logs):
             ]
             reason_str = ", ".join(reason_labels) if reason_labels else "원인불명"
             xy = f"x={evt['x']}, y={evt['y']}" if evt['x'] is not None else "위치불명"
-            lines.append(f"- {time_str} {label} @ `{xy}` — {reason_str}")
+            avoid = AVOID_LABEL.get(evt.get("avoidance"), "")
+            mode = MODE_LABEL.get(evt.get("mode"), "")
+            lines.append(f"- {time_str} {label}{mode} @ `{xy}` — {reason_str}{avoid}")
     
     return "\n".join(lines), unique_events
 
 
-def read_logs(state: AgentState):
-    log_dir = os.path.expanduser('~/wheelchair_ws/driving_data')
-    list_of_files = glob.glob(f'{log_dir}/*.json')
-    
-    if not list_of_files:
-        print("\033[93m\n[알림] 분석할 로그 파일이 없습니다.\033[0m")
-        sys.exit(0)
-    
-    latest_file = max(list_of_files, key=os.path.getmtime)
-    print(f"\033[90m📄 분석 대상: {os.path.basename(latest_file)}\033[0m")
-    
+def read_logs(latest_file):
+    """로그 파일 한 개를 읽어 (요약 마크다운, 사건 목록) 반환"""
     raw_logs_list = []
-    
+
     with open(latest_file, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
@@ -191,118 +213,42 @@ def read_logs(state: AgentState):
                 pass
     
     if not raw_logs_list:
-        print("\033[92m🟢 [완벽] 수집된 로그가 없습니다.\033[0m")
-        sys.exit(0)
-    
+        return "## 📋 이벤트 요약\n\n- 수집된 로그가 없습니다.", []
+
     before_count = len(raw_logs_list)
     all_logs = deduplicate_messages(raw_logs_list)
     after_count = len(all_logs)
-    
+
     if before_count != after_count:
         print(f"\033[90m🔁 중복 메시지 {before_count - after_count}개 제거 ({before_count} → {after_count})\033[0m")
-    
-    summary, unique_events = build_summary(all_logs)
-    print("\033[96m" + summary + "\033[0m\n")
-    
-    if not unique_events:
-        print("\033[92m🟢 [완벽] 분석할 사건이 없습니다. 안전 주행!\033[0m")
-        sys.exit(0)
-    
-    deduped_raw = [evt["raw"] for evt in unique_events]
-    allowed_sample = [l for l in all_logs if l.get("action") == "allowed"][-10:]
-    logs_for_llm = deduped_raw + allowed_sample
-    
-    return {
-        "raw_logs": json.dumps(logs_for_llm, indent=2, ensure_ascii=False),
-        "summary": summary,
-        "analysis_report": "",
-    }
 
-
-def analyze_logs(state: AgentState):
-    llm = ChatOllama(model="qwen2.5:7b", temperature=0.0)
-    
-    prompt = PromptTemplate(
-    input_variables=["stats"],
-    template="""
-You are a UX analyst for autonomous wheelchair systems.
-Analyze the pre-computed statistics below and output ONLY the JSON object.
-
-Rules:
-- Express findings as possibilities, not assertions.
-- Every finding must reference evidence from the stats.
-- If a metric is missing or zero, set "insufficient_data": true.
-- Preserve Korean destination labels (e.g., 응급실/101호/102호/대기소) verbatim.
-- All analysis, summaries, and reasons MUST be written entirely in English. NEVER use Korean except for the destination labels.
-
-[STATS]
-{stats}
-
-[OUTPUT — JSON only, no prose]
-{{
-  "movement_pattern_summary": "",
-  "repeated_intervention_zones": [],
-  "discomfort_zones": [],
-  "improvement_suggestions": [],
-  "overall_stability": {{"level": "high|medium|low", "reason": ""}},
-  "insufficient_data": false
-}}
-"""
-)
-    chain = prompt | llm
-    response = chain.invoke({"stats": state.get("raw_logs", "")})
-    return {"analysis_report": response.content}
+    return build_summary(all_logs)
 
 
 def main(args=None):
-    print("\033[96m🔄 AI가 데이터를 분석 중입니다. 잠시만 기다려주세요...\033[0m")
-    
-    workflow = StateGraph(AgentState)
-    workflow.add_node("read", read_logs)
-    workflow.add_node("analyze", analyze_logs)
-    workflow.set_entry_point("read")
-    workflow.add_edge("read", "analyze")
-    workflow.add_edge("analyze", END)
-    
-    app = workflow.compile()
-    
-    result = app.invoke({
-        "raw_logs": "",
-        "analysis_report": "",
-        "summary": "",
-    })
-    report_content = result.get("analysis_report", "")
-    
-    print("\033[96m\n================= [ 🤖 AI 분석 완료 ] =================\033[0m\n")
-    print(report_content)
-    
-    confidence_match = re.search(r'🎯\s*AI\s*신뢰도[\s:|]*(\d+)', report_content)
-    if confidence_match:
-        confidence = int(confidence_match.group(1))
-        if confidence < 50:
-            print("\033[91m\n[경고] AI 신뢰도가 50% 미만입니다. 데이터가 부족할 수 있습니다.\033[0m")
-            try:
-                user_input = input("\033[93m❓ 추가 센서 로그를 제공하시겠습니까? (Y/N): \033[0m")
-                if user_input.lower() == 'y':
-                    print("\033[92m[시스템] 추가 데이터 수집 모드 활성화 대기...\033[0m")
-                else:
-                    print("\033[90m[시스템] 기존 분석 결과로 마감합니다.\033[0m")
-            except EOFError:
-                pass
-    
-    print("\033[96m\n=======================================================\033[0m\n")
-    
+    log_files = glob.glob(f'{LOG_DIR}/*.json')
+    if not log_files:
+        print("\033[93m\n[알림] 분석할 로그 파일이 없습니다.\033[0m")
+        return
+
+    latest_file = max(log_files, key=os.path.getmtime)
+    print(f"\033[90m📄 분석 대상: {os.path.basename(latest_file)}\033[0m")
+
     try:
-        log_dir = os.path.expanduser('~/wheelchair_ws/driving_data')
-        latest_json = max(glob.glob(f'{log_dir}/*.json'), key=os.path.getmtime)
-        report_filename = os.path.basename(latest_json).replace('.json', '_report.md')
-        report_path = os.path.join(log_dir, report_filename)
-        
+        summary, unique_events = read_logs(latest_file)
+    except OSError as e:
+        print(f"\033[91m⚠️ 로그 읽기 실패: {e}\033[0m")
+        return
+
+    print("\033[96m" + summary + "\033[0m\n")
+    if not unique_events:
+        print("\033[92m🟢 [완벽] 분석할 사건이 없습니다. 안전 주행!\033[0m")
+
+    report_path = latest_file.replace('.json', '_report.md')
+    try:
         with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(result.get("summary", ""))
-            f.write("\n\n---\n\n")
-            f.write(report_content)
-        print(f"\033[92m💾 분석 리포트 저장: {report_filename}\033[0m")
+            f.write(summary + "\n")
+        print(f"\033[92m💾 분석 리포트 저장: {os.path.basename(report_path)}\033[0m")
     except OSError as e:
         print(f"\033[91m⚠️ 리포트 저장 실패: {e}\033[0m")
 

@@ -62,10 +62,10 @@ function AppInner() {
   };
 
   React.useEffect(() => {
-    const connectId = actRef.current.startActivity('로봇 연결 시도');
+    const connectId = actRef.current.startActivity(TXT.actConnecting);
     const ros = new ROSLIB.Ros({ url: ROS_CONFIG.url });
-    ros.on('connection', () => { setRosConnected(true); actRef.current.completeActivity(connectId, '연결 완료'); });
-    ros.on('error', () => { setRosConnected(false); actRef.current.failActivity(connectId, 'UI 테스트 모드'); });
+    ros.on('connection', () => { setRosConnected(true); actRef.current.completeActivity(connectId, TXT.actConnected); });
+    ros.on('error', () => { setRosConnected(false); actRef.current.failActivity(connectId, TXT.actNoRos); });
     ros.on('close', () => setRosConnected(false));
 
     // ===== Publisher =====
@@ -78,7 +78,7 @@ function AppInner() {
     const modeSub = new ROSLIB.Topic({ ros, name: '/robot_mode', messageType: 'std_msgs/String' });
     modeSub.subscribe((msg) => {
       setMode(msg.data);
-      actRef.current.logEvent(`주행 모드 전환: ${msg.data === 'auto' ? '자율' : '수동'}`);
+      actRef.current.logEvent(TXT.logModeSwitch(msg.data === 'auto' ? TXT.auto : TXT.manual));
     });
 
     const scanSub = new ROSLIB.Topic({
@@ -162,7 +162,7 @@ function AppInner() {
         pixels_per_meter: ppm,
       });
       actRef.current.logEvent(
-        `맵 정보 자동 적용: ${info.width}×${info.height}px, ${info.resolution.toFixed(3)}m/px`
+        TXT.logMapApplied(info.width, info.height, info.resolution.toFixed(3))
       );
       mapSub.unsubscribe();
     });
@@ -171,11 +171,11 @@ function AppInner() {
     safetyAlertSub.subscribe((msg) => {
       setSafetyAlert(msg.data);
       if (msg.data === 'obstacle_too_close') {
-        actRef.current.logEvent('⚠️ 전방 장애물 감지 - 자율 주행 중단');
+        actRef.current.logEvent(TXT.logObstacle);
       } else if (msg.data === 'obstacle_cleared') {
-        actRef.current.logEvent('✅ 장애물 해소');
+        actRef.current.logEvent(TXT.logObstacleCleared);
       } else if (msg.data === 'keepout_violation') {
-        actRef.current.logEvent('🚫 금지구역 진입');
+        actRef.current.logEvent(TXT.logKeepout);
       }
     });
 
@@ -185,21 +185,21 @@ function AppInner() {
       const status = msg.data;
       if (status === 'arrived') {
         if (navTaskRef.current != null) {
-          actRef.current.completeActivity(navTaskRef.current, '목적지 도착');
+          actRef.current.completeActivity(navTaskRef.current, TXT.noteArrived);
           navTaskRef.current = null;
         }
         // 클로저 이슈 방지: ref로 최신 activeDest 읽기
         const dest = activeDestRef.current;
-        setArrival({ label: dest?.label || '목적지' });
+        setArrival({ label: dest?.label || TXT.destFallback });
       } else if (status === 'failed') {
         if (navTaskRef.current != null) {
-          actRef.current.failActivity(navTaskRef.current, '주행 실패');
+          actRef.current.failActivity(navTaskRef.current, TXT.noteNavFailed);
           navTaskRef.current = null;
         }
-        actRef.current.logEvent('❌ 자율 주행 실패');
+        actRef.current.logEvent(TXT.logNavFailed);
       } else if (status === 'cancelled') {
         if (navTaskRef.current != null) {
-          actRef.current.cancelActivity(navTaskRef.current, '주행 취소');
+          actRef.current.cancelActivity(navTaskRef.current, TXT.noteNavCancelled);
           navTaskRef.current = null;
         }
       }
@@ -214,9 +214,9 @@ function AppInner() {
           if (lastHealth[k] === v) continue;
           lastHealth[k] = v;
           const name = SENSOR_LABELS[k] || k;
-          if (v === 'ok') actRef.current.logEvent(`✅ ${name} 센서 정상`);
-          else if (v === 'never') actRef.current.logEvent(`🔌 ${name} 센서 응답 없음`);
-          else if (typeof v === 'string' && v.startsWith('lost')) actRef.current.logEvent(`🔌 ${name} 센서 끊김 (${v})`);
+          if (v === 'ok') actRef.current.logEvent(TXT.logSensorOk(name));
+          else if (v === 'never') actRef.current.logEvent(TXT.logSensorNever(name));
+          else if (typeof v === 'string' && v.startsWith('lost')) actRef.current.logEvent(TXT.logSensorLost(name, v));
         }
       } catch (e) { /* JSON 파싱 실패 무시 */ }
     });
@@ -227,10 +227,10 @@ function AppInner() {
       if (msg.data === lastImuEmergency) return;
       lastImuEmergency = msg.data;
       if (msg.data) {
-        actRef.current.logEvent('🚨 IMU 비상 (기울기/충격 감지)');
+        actRef.current.logEvent(TXT.logImuEmergency);
         setSafetyAlert('imu_emergency');
       } else {
-        actRef.current.logEvent('✅ IMU 정상 복귀');
+        actRef.current.logEvent(TXT.logImuOk);
       }
     });
 
@@ -240,10 +240,10 @@ function AppInner() {
       if (msg.data === lastLocEmergency) return;
       lastLocEmergency = msg.data;
       if (msg.data) {
-        actRef.current.logEvent('🚨 위치 추적 분실 - 글로벌 재인식 시도');
+        actRef.current.logEvent(TXT.logLocLostGlobal);
         setSafetyAlert('localization_lost');
       } else {
-        actRef.current.logEvent('✅ 위치 추적 복구');
+        actRef.current.logEvent(TXT.logLocRecovered);
       }
     });
 
@@ -252,20 +252,20 @@ function AppInner() {
     locStatusSub.subscribe((msg) => {
       if (lastLocStatus === msg.data) return;
       lastLocStatus = msg.data;
-      if (msg.data === 'uncertain') actRef.current.logEvent('⚠️ 위치 추적 불확실');
-      else if (msg.data === 'lost') actRef.current.logEvent('🚨 위치 추적 분실');
-      else if (msg.data === 'ok') actRef.current.logEvent('✅ 위치 추적 정상');
+      if (msg.data === 'uncertain') actRef.current.logEvent(TXT.logLocUncertain);
+      else if (msg.data === 'lost') actRef.current.logEvent(TXT.logLocLost);
+      else if (msg.data === 'ok') actRef.current.logEvent(TXT.logLocOk);
     });
 
     const sosTriggerSub = new ROSLIB.Topic({ ros, name: '/sos_trigger', messageType: 'std_msgs/String' });
     sosTriggerSub.subscribe((msg) => {
-      actRef.current.logEvent(`🆘 SOS: ${msg.data}`);
+      actRef.current.logEvent(TXT.logSos(msg.data));
     });
 
-    const avoidLabels = { left: '왼쪽으로 우회', right: '오른쪽으로 우회', blocked: '양쪽 막힘 - 회피 불가' };
+    const avoidLabels = { left: TXT.avoidLeft, right: TXT.avoidRight, blocked: TXT.avoidBlocked };
     const avoidSub = new ROSLIB.Topic({ ros, name: '/avoidance_direction', messageType: 'std_msgs/String' });
     avoidSub.subscribe((msg) => {
-      actRef.current.logEvent(`↪️ ${avoidLabels[msg.data] || msg.data}`);
+      actRef.current.logEvent(TXT.logAvoid(avoidLabels[msg.data] || msg.data));
     });
 
     let lastAction = null;
@@ -276,22 +276,25 @@ function AppInner() {
         const key = `${a.action}:${a.reason || ''}`;
         if (lastAction === key) return;
         lastAction = key;
-        if (a.action === 'blocked') actRef.current.logEvent(`🛑 명령 차단 (${a.reason || '비상'})`);
-        else if (a.action === 'modified') actRef.current.logEvent(`✂️ 속도 제한 (${a.reason || '장애물'})`);
+        if (a.action === 'blocked') actRef.current.logEvent(TXT.logBlocked(a.reason || TXT.reasonEmergency));
+        else if (a.action === 'modified') actRef.current.logEvent(TXT.logModified(a.reason || TXT.reasonObstacle));
       } catch (e) { /* JSON 파싱 실패 무시 */ }
     });
 
     let lastZoneType = null;
     const zoneSub = new ROSLIB.Topic({ ros, name: '/current_zone', messageType: 'std_msgs/String' });
     zoneSub.subscribe((msg) => {
+      // ⚠️ 아래 한글은 UI 문구가 아니라 safety_stop_node가 /current_zone으로
+      //    발행하는 값 자체다 ('비상정지 | ...', '위험구역(정지) | ...').
+      //    번역하면 매칭이 깨진다.
       let zoneType = '일반';
       if (msg.data.startsWith('비상정지')) zoneType = '비상';
       else if (msg.data.startsWith('위험구역')) zoneType = '위험';
       if (lastZoneType === zoneType) return;
       lastZoneType = zoneType;
-      if (zoneType === '비상') actRef.current.logEvent('🛑 비상정지 구역 진입');
-      else if (zoneType === '위험') actRef.current.logEvent('⚠️ 위험구역 진입');
-      else actRef.current.logEvent('✅ 일반구역 복귀');
+      if (zoneType === '비상') actRef.current.logEvent(TXT.logZoneEmergency);
+      else if (zoneType === '위험') actRef.current.logEvent(TXT.logZoneDanger);
+      else actRef.current.logEvent(TXT.logZoneNormal);
     });
 
     setRosTopics({ destPub, modeSwitchPub, cmdVelPub, sosPub });
@@ -321,7 +324,7 @@ function AppInner() {
   const popScreen = () => setStack(prev => prev.length > 1 ? prev.slice(0, -1) : prev);
   const goHomeAll = () => {
     if (navTaskRef.current != null) {
-      act.cancelActivity(navTaskRef.current, '홈으로 복귀');
+      act.cancelActivity(navTaskRef.current, TXT.noteGoHome);
       navTaskRef.current = null;
     }
     setActiveDest(null);
@@ -333,10 +336,10 @@ function AppInner() {
   const askStartNavigation = (destName) => {
     const label = DEST_LABELS[destName] || destName;
     setConfirm({
-      title: `${label}(으)로 이동할까요?`,
-      message: '확인을 누르면 휠체어가 즉시 자율 주행을 시작합니다.',
-      confirmText: '네, 이동합니다',
-      cancelText: '아니오',
+      title: TXT.askNavTitle(label),
+      message: TXT.askNavMsg,
+      confirmText: TXT.askNavOk,
+      cancelText: TXT.askNo,
       tone: 'primary',
       onConfirm: () => {
         setConfirm(null);
@@ -346,10 +349,10 @@ function AppInner() {
   };
   const askGoHomeBase = () => {
     setConfirm({
-      title: '대기소로 자동 귀환할까요?',
-      message: '확인을 누르면 휠체어가 대기소까지 자율 주행으로 돌아갑니다.',
-      confirmText: '네, 귀환합니다',
-      cancelText: '아니오',
+      title: TXT.askHomeTitle,
+      message: TXT.askHomeMsg,
+      confirmText: TXT.askHomeOk,
+      cancelText: TXT.askNo,
       tone: 'primary',
       onConfirm: () => {
         setConfirm(null);
@@ -360,35 +363,35 @@ function AppInner() {
 
   const askEndSession = () => {
     setConfirm({
-      title: '오늘 이용을 종료할까요?',
-      message: '주행 기록을 AI가 분석합니다 (1~2분 소요).',
-      confirmText: '네, 종료합니다',
-      cancelText: '아니오',
+      title: TXT.askEndTitle,
+      message: TXT.askEndMsg,
+      confirmText: TXT.askEndOk,
+      cancelText: TXT.askNo,
       tone: 'primary',
       onConfirm: async () => {
         setConfirm(null);
-        actRef.current.logEvent('🛑 이용 종료 요청');
+        actRef.current.logEvent(TXT.logEndRequest);
         try {
-          const res = await fetch('http://localhost:8090/api/analyze_session', {
+          const res = await fetch(`${ADMIN_API}/api/analyze_session`, {
             method: 'POST',
           });
           const data = await res.json();
           if (data.ok) {
-            actRef.current.logEvent('🤖 AI 분석 시작됨');
+            actRef.current.logEvent(TXT.logAiStarted);
           } else {
-            actRef.current.logEvent('⚠️ 분석 요청 실패');
+            actRef.current.logEvent(TXT.logAiFailed);
           }
         } catch (e) {
-          actRef.current.logEvent('⚠️ 서버 연결 실패 — 관제 서버 확인');
+          actRef.current.logEvent(TXT.logServerDown);
         }
       },
     });
   };
 
   const doStartNavigation = (destName) => {
-    if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, '새 목적지 지정');
+    if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, TXT.noteNewDest);
     const label = DEST_LABELS[destName] || destName;
-    const id = act.startActivity(`자율 주행: ${label}`);
+    const id = act.startActivity(TXT.actNavTo(label), { kind: 'nav' });
     navTaskRef.current = id;
     setActiveDest({ key: destName, label });
     setMode('auto');
@@ -397,10 +400,10 @@ function AppInner() {
   };
 
   const doGoHomeBase = () => {
-    if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, '대기소 귀환으로 변경');
-    const id = act.startActivity('대기소 자동 귀환');
+    if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, TXT.noteToHomeBase);
+    const id = act.startActivity(TXT.actGoHomeBase, { kind: 'nav' });
     navTaskRef.current = id;
-    setActiveDest({ key: 'home_base', label: '대기소' });
+    setActiveDest({ key: 'home_base', label: TXT.homeBase });
     setMode('auto');
     if (rosTopics) rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'home' }));
     pushScreen('nav');
@@ -409,10 +412,10 @@ function AppInner() {
   // 네비게이션 화면에서 정지 (긴급 아님)
   const stopNavigation = () => {
     if (navTaskRef.current != null) {
-      act.cancelActivity(navTaskRef.current, '사용자 정지');
+      act.cancelActivity(navTaskRef.current, TXT.noteUserStop);
       navTaskRef.current = null;
     }
-    act.logEvent('주행 정지');
+    act.logEvent(TXT.logDriveStopped);
     if (rosTopics) rosTopics.cmdVelPub.publish(new ROSLIB.Message({ linear: {x:0, y:0, z:0}, angular: {x:0, y:0, z:0} }));
     setAlertReason('user_stop');
     pushScreen('alert');
@@ -421,19 +424,19 @@ function AppInner() {
   // 홈 화면의 SOS = 진짜 긴급 정지
   const triggerSOS = () => {
     setConfirm({
-      title: 'SOS 호출을 보낼까요?',
-      message: '보호자와 관제실에 즉시 알림이 전달됩니다.',
-      confirmText: '네, 호출합니다',
-      cancelText: '아니오',
+      title: TXT.askSosTitle,
+      message: TXT.askSosMsg,
+      confirmText: TXT.askSosOk,
+      cancelText: TXT.askNo,
       tone: 'danger',
       onConfirm: () => {
         setConfirm(null);
         if (navTaskRef.current != null) {
-          act.cancelActivity(navTaskRef.current, '긴급 정지');
+          act.cancelActivity(navTaskRef.current, TXT.noteEmergency);
           navTaskRef.current = null;
         }
-        act.cancelAllActive('긴급 정지');
-        act.logEvent('🛑 SOS 긴급 호출');
+        act.cancelAllActive(TXT.noteEmergency);
+        act.logEvent(TXT.logSosCall);
         if (rosTopics) {
           rosTopics.cmdVelPub.publish(new ROSLIB.Message({ linear: {x:0, y:0, z:0}, angular: {x:0, y:0, z:0} }));
           rosTopics.sosPub.publish(new ROSLIB.Message({ data: 'user_sos' }));
@@ -447,7 +450,7 @@ function AppInner() {
   // ⭐ 변경(2025): scheduleArrival 호출 제거. 재개해도 도착은 /nav_status가 알려줌.
   const resumeNav = () => {
     setAlertReason(null);
-    const id = act.startActivity('자율 주행 재개 (우회 경로)');
+    const id = act.startActivity(TXT.actResumeDetour, { kind: 'nav' });
     navTaskRef.current = id;
     setMode('auto');
     popScreen(); // alert에서 한 단계 뒤로 (이전이 nav면 nav로)
@@ -463,15 +466,15 @@ function AppInner() {
       return;
     }
     setConfirm({
-      title: target === 'home' ? '홈으로 돌아갈까요?' : '주행을 취소할까요?',
-      message: target === 'home' ? '진행 중인 자율 주행이 취소되고 홈 화면으로 이동합니다.' : '진행 중인 자율 주행이 취소됩니다.',
-      confirmText: '네, 취소합니다',
-      cancelText: '계속 주행',
+      title: target === 'home' ? TXT.askCancelNavHomeTitle : TXT.askCancelNavTitle,
+      message: target === 'home' ? TXT.askCancelNavHomeMsg : TXT.askCancelNavMsg,
+      confirmText: TXT.askCancelOk,
+      cancelText: TXT.askKeepDriving,
       tone: 'warn',
       onConfirm: () => {
         setConfirm(null);
         if (navTaskRef.current != null) {
-          act.cancelActivity(navTaskRef.current, target === 'home' ? '홈으로 복귀' : '사용자 취소');
+          act.cancelActivity(navTaskRef.current, target === 'home' ? TXT.noteGoHome : TXT.noteUserCancel);
           navTaskRef.current = null;
         }
         setActiveDest(null);
@@ -484,11 +487,11 @@ function AppInner() {
 
   const navToManual = () => {
     if (navTaskRef.current != null) {
-      act.cancelActivity(navTaskRef.current, '수동 모드 전환');
+      act.cancelActivity(navTaskRef.current, TXT.noteToManual);
       navTaskRef.current = null;
     }
     setMode('manual');
-    act.logEvent('수동 주행 모드 진입');
+    act.logEvent(TXT.logManualEnter);
     if (rosTopics) rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'm' }));
     pushScreen('joystick');
   };
@@ -496,18 +499,18 @@ function AppInner() {
   const navToAuto = () => {
     if (mode !== 'auto') {
       setMode('auto');
-      act.logEvent('자율 주행 모드 진입');
+      act.logEvent(TXT.logAutoEnter);
       if (rosTopics) rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'a' }));
     }
   };
 
   const joystickToAuto = () => {
     setMode('auto');
-    act.logEvent('자율 모드로 복귀');
+    act.logEvent(TXT.logAutoReturn);
     if (rosTopics) rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'a' }));
     if (activeDest) {
-      if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, '재개');
-      const id = act.startActivity(`자율 주행 재개: ${activeDest.label}`);
+      if (navTaskRef.current != null) act.cancelActivity(navTaskRef.current, TXT.noteResume);
+      const id = act.startActivity(TXT.actResumeTo(activeDest.label), { kind: 'nav' });
       navTaskRef.current = id;
       if (rosTopics) {
         if (activeDest.key === 'home_base') rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'home' }));
@@ -525,11 +528,11 @@ function AppInner() {
 
   const goToManualAnywhere = () => {
     if (navTaskRef.current != null) {
-      act.cancelActivity(navTaskRef.current, '수동 조작 전환');
+      act.cancelActivity(navTaskRef.current, TXT.noteManualTakeover);
       navTaskRef.current = null;
     }
     setMode('manual');
-    act.logEvent('수동 주행 모드 진입');
+    act.logEvent(TXT.logManualEnter);
     if (rosTopics) rosTopics.modeSwitchPub.publish(new ROSLIB.Message({ data: 'm' }));
     setStack(prev => prev[prev.length - 1] === 'joystick' ? prev : [...prev, 'joystick']);
   };
@@ -545,7 +548,8 @@ function AppInner() {
   
   }
 
-  const hasActiveNav = act.activities.some(a => a.status === 'active' && (a.label.startsWith('자율 주행') || a.label.includes('대기소 자동 귀환')));
+  // 라벨 문자열로 판별하면 언어를 바꾸는 순간 매칭이 깨진다 → kind 메타로 판별
+  const hasActiveNav = act.activities.some(a => a.status === 'active' && a.kind === 'nav');
   const showOverlays = currentScreen !== 'home' && currentScreen !== 'alert';
 
   return (
@@ -562,7 +566,7 @@ function AppInner() {
           textAlign: 'center',
           letterSpacing: 0.5,
         }}>
-          ⚠️ 로봇 통신 끊김 — 화면 정보가 실시간이 아닐 수 있습니다
+          {TXT.rosDown}
         </div>
       )}
       {/* 글로벌 정지 버튼: 화면 하단 중앙(우측 상단의 보호자 pill·하단의 SOS와 겹치지 않도록 nav 화면 외엔 표시 안 함) */}
@@ -579,9 +583,9 @@ function AppInner() {
             cursor: 'pointer',
             boxShadow: '0 8px 24px rgba(229,72,77,0.4)',
           }}
-          title="현재 주행 정지"
+          title={TXT.stopCurrentDrive}
         >
-          <Icon name="stop" size={18} stroke={2.5} /> 정지
+          <Icon name="stop" size={18} stroke={2.5} /> {TXT.stop}
         </button>
       )}
       {/* 글로벌 수동조작 버튼: 자체 수동 진입점이 없는 home·search 화면에서만 표시.
@@ -606,9 +610,9 @@ function AppInner() {
             cursor: 'pointer',
             boxShadow: '0 8px 24px rgba(0,47,108,0.18)',
           }}
-          title="수동 조작으로 전환"
+          title={TXT.switchToManualTitle}
         >
-          <Icon name="play" size={18} stroke={2.5} /> 수동조작
+          <Icon name="play" size={18} stroke={2.5} /> {TXT.manualControl}
         </button>
       )}
       <ConfirmDialog
