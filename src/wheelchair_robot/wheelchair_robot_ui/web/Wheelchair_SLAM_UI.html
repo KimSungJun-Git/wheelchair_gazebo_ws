@@ -7,7 +7,13 @@
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- ⚠️ 버전을 고정해야 한다. 무버전(@babel/standalone)으로 두면 unpkg가 8.x를 주는데,
+       babel 8의 react 프리셋은 기본이 automatic JSX runtime이라
+       `import { jsx } from "react/jsx-runtime"`를 뱉는다.
+       일반 <script>에서 import는 SyntaxError → 아래 .jsx가 전부 실행되지 않고 흰 화면이 된다.
+       7.29.0은 classic runtime(React.createElement)이라 UMD react와 맞는다.
+       admin/Dashboard.html도 같은 버전으로 고정돼 있다. -->
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
 
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
 

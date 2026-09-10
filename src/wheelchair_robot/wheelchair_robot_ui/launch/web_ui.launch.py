@@ -57,14 +57,19 @@ def generate_launch_description():
             output='screen',
             condition=IfCondition(use_rosbridge),
         ),
+        # 정적 서버 하나가 탑승자 UI와 관제 대시보드를 함께 서빙한다.
+        #   http://<host>:8000/                        → 랜딩 (두 사이트 링크)
+        #   http://<host>:8000/Wheelchair_SLAM_UI.html → 탑승자 UI
+        #   http://<host>:8000/admin/Dashboard.html    → 관제 대시보드
         ExecuteProcess(
             cmd=['python3', '-m', 'http.server', port, '-d', web_dir, '-b', '0.0.0.0'],
             output='screen',
             name='wheelchair_ui_server',
         ),
+        LogInfo(msg=['🌐 UI  http://localhost:', port, '/']),
         Node(
-            package='wheelchair_admin_dashboard',
-            executable='server',
+            package='wheelchair_robot_ui',
+            executable='admin_server',
             name='admin_backend_server',
             output='screen',
         ),
@@ -73,6 +78,9 @@ def generate_launch_description():
             executable='log_collector_node',
             name='log_collector_node',
             output='screen',
+            parameters=[os.path.join(
+                get_package_share_directory('wheelchair_robot_control'),
+                'config', 'safety.yaml')],
         ),
 
         # ⬇ 여기가 추가된 핵심 부분

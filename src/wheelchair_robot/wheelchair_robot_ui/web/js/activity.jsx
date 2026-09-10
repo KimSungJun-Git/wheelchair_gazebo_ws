@@ -18,7 +18,7 @@ function ActivityProvider({ children }) {
   }, []);
 
   const completeActivity = React.useCallback((id, note) => updateActivity(id, { status: 'completed', note }), [updateActivity]);
-  const cancelActivity   = React.useCallback((id, note) => updateActivity(id, { status: 'cancelled', note: note || '사용자 취소' }), [updateActivity]);
+  const cancelActivity   = React.useCallback((id, note) => updateActivity(id, { status: 'cancelled', note: note || TXT.noteUserCancel }), [updateActivity]);
   const failActivity     = React.useCallback((id, note) => updateActivity(id, { status: 'failed', note }), [updateActivity]);
 
   const logEvent = React.useCallback((label, meta = {}) => {
@@ -30,7 +30,7 @@ function ActivityProvider({ children }) {
 
   const cancelAllActive = React.useCallback((note) => {
     setActivities(prev => prev.map(a => a.status === 'active'
-      ? { ...a, status: 'cancelled', note: note || '사용자 취소', endedAt: new Date() }
+      ? { ...a, status: 'cancelled', note: note || TXT.noteUserCancel, endedAt: new Date() }
       : a));
   }, []);
 
@@ -75,10 +75,10 @@ function StatusDot({ status }) {
 }
 
 const STATUS_LABEL = {
-  active:    { ko: '진행 중' },
-  completed: { ko: '완료' },
-  cancelled: { ko: '취소됨' },
-  failed:    { ko: '실패' },
+  active:    TXT.statusActive,
+  completed: TXT.statusCompleted,
+  cancelled: TXT.statusCancelled,
+  failed:    TXT.statusFailed,
 };
 
 function ActivityRow({ entry, onCancel, now }) {
@@ -104,7 +104,7 @@ function ActivityRow({ entry, onCancel, now }) {
           <div style={{ fontSize: 11, color: C.inkFaint, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtTime(entry.startedAt)}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: pillBg, color: pillFg }}>{STATUS_LABEL[entry.status].ko}</span>
+          <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: pillBg, color: pillFg }}>{STATUS_LABEL[entry.status]}</span>
           <span style={{ fontSize: 11, color: C.inkFaint, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
             {isActive ? `+${fmtDuration(entry.startedAt, now)}` : fmtDuration(entry.startedAt, entry.endedAt)}
           </span>
@@ -116,7 +116,7 @@ function ActivityRow({ entry, onCancel, now }) {
               marginLeft: 'auto', padding: '3px 10px', fontSize: 11, fontWeight: 800,
               background: C.surface, color: C.danger, border: `1.5px solid ${C.dangerSoft}`,
               borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-            }}>취소</button>
+            }}>{TXT.cancel}</button>
           )}
         </div>
       </div>
@@ -124,7 +124,7 @@ function ActivityRow({ entry, onCancel, now }) {
   );
 }
 
-function ConfirmDialog({ open, title, message, confirmText = '확인', cancelText = '취소', tone = 'primary', onConfirm, onCancel }) {
+function ConfirmDialog({ open, title, message, confirmText = TXT.confirm, cancelText = TXT.cancel, tone = 'primary', onConfirm, onCancel }) {
   if (!open) return null;
   const C = TOKENS.color;
   const confirmBg = tone === 'danger' ? C.danger : C.primary;
@@ -160,7 +160,7 @@ function ConfirmDialog({ open, title, message, confirmText = '확인', cancelTex
   );
 }
 
-function ActivityPanel({ onStop }) {
+function ActivityPanel() {
   const C = TOKENS.color;
   const ctx = useActivity();
   const [open, setOpen] = React.useState(false);
@@ -187,8 +187,8 @@ function ActivityPanel({ onStop }) {
   const statusText = currentEntry
     ? (currentEntry.status === 'active'
         ? `${currentEntry.label}  ·  +${fmtDuration(currentEntry.startedAt, now)}`
-        : `${currentEntry.label}  ·  ${STATUS_LABEL[currentEntry.status].ko}`)
-    : '대기 중';
+        : `${currentEntry.label}  ·  ${STATUS_LABEL[currentEntry.status]}`)
+    : TXT.actIdle;
 
   const TabBtn = ({ k, label }) => (
     <button onClick={() => setFilter(k)} style={{
@@ -239,7 +239,7 @@ function ActivityPanel({ onStop }) {
           marginLeft: 4, padding: '3px 9px', fontSize: 11, fontWeight: 800,
           background: C.surfaceAlt, color: C.primaryDark, borderRadius: 999,
           flexShrink: 0,
-        }}>로그 열기</span>
+        }}>{TXT.actOpenLog}</span>
       </div>
     );
   }
@@ -268,43 +268,43 @@ function ActivityPanel({ onStop }) {
           <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: hasActive ? C.accent : C.success }} />
           {hasActive && <span style={{ position: 'absolute', inset: -4, borderRadius: '50%', background: 'rgba(59,130,246,0.3)', animation: 'actPulse 1.4s ease-out infinite' }} />}
         </span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: C.primaryDark }}>시스템 활동</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: C.primaryDark }}>{TXT.actPanelTitle}</span>
         {hasActive ? (
           <span style={{ fontSize: 11, fontWeight: 800, color: C.primaryDark, padding: '2px 8px', background: C.primarySoft, borderRadius: 999 }}>
-            {counts.active}건 진행 중
+            {TXT.actRunning(counts.active)}
           </span>
         ) : (
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.inkFaint }}>대기</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.inkFaint }}>{TXT.actIdleShort}</span>
         )}
         <span style={{ marginLeft: 'auto', color: C.inkMuted, fontSize: 16, fontWeight: 700 }}>−</span>
       </div>
 
       <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 4, borderBottom: `1px solid ${C.line}`, background: '#F8FAFC', overflowX: 'auto', flexShrink: 0 }}>
-        <TabBtn k="all" label="전체" />
-        <TabBtn k="active" label="진행" />
-        <TabBtn k="completed" label="완료" />
-        <TabBtn k="cancelled" label="취소" />
-        {counts.failed > 0 && <TabBtn k="failed" label="실패" />}
+        <TabBtn k="all" label={TXT.tabAll} />
+        <TabBtn k="active" label={TXT.tabActive} />
+        <TabBtn k="completed" label={TXT.tabCompleted} />
+        <TabBtn k="cancelled" label={TXT.tabCancelled} />
+        {counts.failed > 0 && <TabBtn k="failed" label={TXT.tabFailed} />}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           {hasActive && (
             <button onClick={(e) => { e.stopPropagation(); ctx.cancelAllActive(); }} style={{
               padding: '5px 10px', fontSize: 11, fontWeight: 800,
               background: C.surface, color: C.danger, border: `1.5px solid ${C.dangerSoft}`,
               borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-            }}>모두 중지</button>
+            }}>{TXT.actStopAll}</button>
           )}
           <button onClick={(e) => { e.stopPropagation(); ctx.clearAll(); }} style={{
             padding: '5px 10px', fontSize: 11, fontWeight: 800,
             background: 'transparent', color: C.inkMuted, border: `1.5px solid ${C.line}`,
             borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-          }}>지우기</button>
+          }}>{TXT.actClear}</button>
         </div>
       </div>
 
       <div style={{ overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         {visible.length === 0 ? (
           <div style={{ padding: '32px 16px', textAlign: 'center', color: C.inkFaint, fontSize: 13, fontWeight: 600 }}>
-            아직 기록된 동작이 없습니다.
+            {TXT.actEmpty}
           </div>
         ) : (
           visible.map(entry => (

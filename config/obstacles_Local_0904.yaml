@@ -1,0 +1,122 @@
+static_obstacles:
+- {name: static_obs_1, x: -8.0, y: -6.75, yaw: 0.0}
+- {name: static_obs_2, x: -7.95, y: -2.6, yaw: 0.0}
+- {name: static_obs_3, x: -7.75, y: 1.65, yaw: 0.0}
+- {name: static_obs_4, x: -7.75, y: 6.35, yaw: 0.0}
+- {name: static_obs_5, x: -3.95, y: 5.7, yaw: 0.0}
+- {name: static_obs_6, x: -3.9, y: -3.65, yaw: 0.0}
+- {name: static_obs_7, x: 1.7, y: -8.2, yaw: 0.0}
+- {name: static_obs_8, x: 9.7, y: 6.4, yaw: 0.0}
+- {name: static_obs_9, x: 13.8, y: -5.85, yaw: 0.0}
+- {name: static_obs_10, x: 19.8, y: 3.65, yaw: 0.0}
+
+dynamic_settings:
+  randomize: true
+  behavior_mode: "random_walk"          # 진짜 보행자 전역 랜덤 워크 (거점 제한 완전 해제)
+  roam_min_dist: 2.5                    # 1회 이동 최소 거리 (m) - 복도 따라 시원하게 이동
+  roam_max_dist: 6.5                    # 1회 이동 최대 거리 (m)
+  speed_range: [0.35, 1.10]             # 자연스러운 보행 속도 (m/s)
+  repulsion_dist: 1.20                  # 장애물 간 상호 반발 거리 (m)
+  repulsion_gain: 0.50                  # 상호 반발 속도 가중치
+  robot_avoid_margin: 0.25              # 가제보 로봇 25cm 이내 접근 시 즉각 튕김 트리거 (m)
+  robot_avoid_speed: 1.15               # 튕겨나갈 때 발진 속도 (m/s)
+  pause_prob: 0.15                      # 목표점 도달 시 잠깐 멈칫할 확률 (15%)
+  pause_range_sec: [0.3, 1.2]           # 멈칫 대기 시간 (초)
+  jitter_range_m: 0.30                  # 보행 중 자연스러운 곡선 흔들림
+
+dynamic_obstacles:
+# ---------------- [서북부 구역 (4개)] ----------------
+- name: dynamic_obs_1
+  waypoints: [[-9.20, 7.20], [-6.50, 7.50]]
+- name: dynamic_obs_2
+  waypoints: [[-6.80, 6.80], [-8.50, 8.00]]
+- name: dynamic_obs_3
+  waypoints: [[-8.80, 4.50], [-6.50, 4.00]]
+- name: dynamic_obs_4
+  waypoints: [[-6.50, 3.50], [-8.50, 3.00]]
+
+# ---------------- [서중부 구역 (2개)] ----------------
+- name: dynamic_obs_5
+  waypoints: [[-9.00, 0.00], [-6.80, -0.50]]
+- name: dynamic_obs_6
+  waypoints: [[-6.80, 0.80], [-8.80, 1.00]]
+
+# ---------------- [서남부 구역 (4개)] ----------------
+- name: dynamic_obs_7
+  waypoints: [[-9.00, -4.50], [-6.80, -5.00]]
+- name: dynamic_obs_8
+  waypoints: [[-6.50, -5.50], [-8.80, -6.00]]
+- name: dynamic_obs_9
+  waypoints: [[-9.00, -8.00], [-6.50, -8.50]]
+- name: dynamic_obs_10
+  waypoints: [[-6.50, -8.50], [-8.50, -7.50]]
+
+# ---------------- [서측 중앙 전이 통로 (2개)] ----------------
+- name: dynamic_obs_11
+  waypoints: [[-5.00, 2.00], [-3.00, 1.50]]
+- name: dynamic_obs_12
+  waypoints: [[-5.00, -1.50], [-3.00, -2.00]]
+
+# ---------------- [중앙 북부 복도 (3개)] ----------------
+- name: dynamic_obs_13
+  waypoints: [[-2.00, 7.50], [0.50, 7.00]]
+- name: dynamic_obs_14
+  waypoints: [[0.50, 8.00], [-1.50, 6.50]]
+- name: dynamic_obs_15
+  waypoints: [[-1.50, 4.50], [1.00, 4.00]]
+
+# ---------------- [중앙 중부 통로 (2개)] ----------------
+- name: dynamic_obs_16
+  waypoints: [[-2.00, 0.50], [0.50, 0.00]]
+- name: dynamic_obs_17
+  waypoints: [[0.50, 1.50], [-1.00, 2.00]]
+
+# ---------------- [중앙 남부 회랑 (4개)] ----------------
+- name: dynamic_obs_18
+  waypoints: [[-1.00, -2.50], [1.00, -2.00]]
+- name: dynamic_obs_19
+  waypoints: [[-1.50, -6.00], [0.50, -5.50]]
+- name: dynamic_obs_20
+  waypoints: [[0.00, -8.50], [-2.00, -8.00]]
+- name: dynamic_obs_21
+  waypoints: [[2.50, -5.00], [0.50, -4.50]]
+
+# ---------------- [중동 북부 교차로 (2개)] ----------------
+- name: dynamic_obs_22
+  waypoints: [[4.00, 7.00], [6.50, 6.50]]
+- name: dynamic_obs_23
+  waypoints: [[6.50, 8.00], [4.50, 8.50]]
+
+# ---------------- [중동 중부 교차로 (3개)] ----------------
+- name: dynamic_obs_24
+  waypoints: [[5.00, 3.50], [7.50, 3.00]]
+- name: dynamic_obs_25
+  waypoints: [[4.00, 0.00], [6.50, -0.50]]
+- name: dynamic_obs_26
+  waypoints: [[6.50, 1.00], [4.50, 1.50]]
+
+# ---------------- [중동 남부 통로 (3개)] ----------------
+- name: dynamic_obs_27
+  waypoints: [[5.00, -3.50], [7.00, -3.00]]
+- name: dynamic_obs_28
+  waypoints: [[4.00, -7.00], [6.50, -6.50]]
+- name: dynamic_obs_29
+  waypoints: [[7.50, -7.50], [5.50, -8.50]]
+
+# ---------------- [동북 광장 (2개)] ----------------
+- name: dynamic_obs_30
+  waypoints: [[12.00, 7.50], [15.00, 7.00]]
+- name: dynamic_obs_31
+  waypoints: [[15.50, 7.50], [18.50, 8.00]]
+
+# ---------------- [동중 광장 (2개)] ----------------
+- name: dynamic_obs_32
+  waypoints: [[12.00, 1.50], [14.50, 0.50]]
+- name: dynamic_obs_33
+  waypoints: [[16.00, 1.00], [18.50, 1.50]]
+
+# ---------------- [동남 광장 (2개)] ----------------
+- name: dynamic_obs_34
+  waypoints: [[12.00, -4.00], [14.50, -3.50]]
+- name: dynamic_obs_35
+  waypoints: [[16.00, -7.50], [18.50, -6.50]]

@@ -1,6 +1,6 @@
-from setuptools import find_packages, setup
-import os # 1. os 임포트 추가
-from glob import glob # 2. glob 임포트 추가
+from setuptools import find_packages, setup 
+import os
+from glob import glob
 
 package_name = 'wheelchair_robot_control'
 
@@ -31,6 +31,7 @@ setup(
             'mode_switch_node = wheelchair_robot_control.mode_switch_node:main',
             'imu_safety_node = wheelchair_robot_control.imu_safety_node:main',
             'localization_monitor_node = wheelchair_robot_control.localization_monitor_node:main',
+            'dynamic_scan_filter = wheelchair_robot_control.dynamic_scan_filter:main',
         ],
     },
 )

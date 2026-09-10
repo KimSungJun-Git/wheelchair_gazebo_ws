@@ -3,30 +3,63 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction
 from launch_ros.actions import Node, SetRemap  
+
 def generate_launch_description():
     # ===== 경로 설정 =====
     pkg_dir = get_package_share_directory('wheelchair_robot_navigation2')
+    control_pkg_dir = get_package_share_directory('wheelchair_robot_control')
     nav2_launch_dir = os.path.join(
         get_package_share_directory('nav2_bringup'), 'launch')
 
     rviz_config = os.path.join(pkg_dir, 'rviz', 'wheelchair_robot_navigation2.rviz')
-    default_map = os.path.join(pkg_dir, 'map', 'wheelchair_robot_world.yaml')
+    default_map = os.path.join(pkg_dir, 'map', 'Local_0904.yaml')
     default_param = os.path.join(pkg_dir, 'param', 'wheelchair_robot.yaml')
+    safety_config = os.path.join(control_pkg_dir, 'config', 'safety.yaml')
     keepout_mask_yaml = os.path.join(pkg_dir, 'map', 'keepout_mask.yaml')
     speed_mask_yaml = os.path.join(pkg_dir, 'map', 'speed_mask.yaml') 
+    gazebo_bridge_launch = os.path.join(control_pkg_dir, 'launch', 'gazebo_bridge.launch.py')
+
     # ===== 실행 인자 =====
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
+    sim = LaunchConfiguration('sim', default='false')
+    use_sim_time = LaunchConfiguration('use_sim_time', default=sim)
     map_path = LaunchConfiguration('map', default=default_map)
     param_path = LaunchConfiguration('params_file', default=default_param)
 
     return LaunchDescription([
         # ===== 인자 선언 =====
+        DeclareLaunchArgument('sim', default_value='false', description='Gazebo 시뮬레이션 통합 실행 여부 (로봇 스폰, TF, 모드스위치 자동 실행)'),
         DeclareLaunchArgument('map', default_value=default_map),
         DeclareLaunchArgument('params_file', default_value=default_param),
-        DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('use_sim_time', default_value=sim),
+
+        # ===== 🎮 Gazebo 시뮬레이션 브릿지 (sim:=true 시 로봇 스폰 + TF + 초음파) =====
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(gazebo_bridge_launch),
+            condition=IfCondition(sim),
+        ),
+
+        # ===== 🔄 모드 스위치 노드 (sim:=true 시 기본 auto 모드로 /cmd_vel 연결) =====
+        Node(
+            package='wheelchair_robot_control',
+            executable='mode_switch_node',
+            name='mode_switch_node',
+            output='screen',
+            parameters=[{'default_mode': 'auto', 'use_sim_time': use_sim_time}],
+            condition=IfCondition(sim),
+        ),
+
+        # ===== 🛡️ Dynamic Scan Filter (CPA 기반 동적 위협 선별) =====
+        Node(
+            package='wheelchair_robot_control',
+            executable='dynamic_scan_filter',
+            name='dynamic_scan_filter',
+            output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
 
         # ===== Safety Stop Node =====
         Node(
@@ -34,11 +67,7 @@ def generate_launch_description():
             executable='safety_stop_node',
             name='safety_stop_node',
             output='screen',
-            parameters=[{
-                'stop_distance': 0.5,
-                'slowdown_distance': 0.8,
-                'front_angle_range': 5.0,
-            }],
+            parameters=[safety_config, {'use_sim_time': use_sim_time}],
         ),
 
         # ===== 🚫 1. 접근 금지 구역 (Keepout) 세트 =====

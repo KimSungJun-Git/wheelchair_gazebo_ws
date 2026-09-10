@@ -30,10 +30,13 @@ class LocalizationMonitor(Node):
         self.first_uncertain_time = None
 
         self.start_time = self.get_clock().now()
+        self.robot_mode = 'auto'
 
         # ===== 토픽/서비스 =====
         self.create_subscription(
             PoseWithCovarianceStamped, '/amcl_pose', self.amcl_cb, 10)
+        self.create_subscription(
+            String, '/robot_mode', self.mode_cb, 10)
 
         self.emergency_pub = self.create_publisher(Bool, '/emergency_stop/localization', 10)
         self.sos_pub = self.create_publisher(String, '/sos_trigger', 10)
@@ -135,10 +138,18 @@ class LocalizationMonitor(Node):
             self.get_logger().error(
                 f'🚨 위치 추적 분실{cov_str} → 글로벌 재인식 호출')
 
+    def mode_cb(self, msg: String):
+        self.robot_mode = msg.data.strip()
+
     def _handle_transition(self, new):
         if new == 'lost':
             self.sos_pub.publish(String(data='localization_lost'))
-            self._trigger_global_relocalization()
+            # [핵심] 휠체어가 이미 Fallback 돌파 주행 중일 때는 파티클을 맵 전체로 흩뿌려
+            # 좌표계를 튕겨버리지 않도록 global_relocalization을 차단합니다.
+            if self.robot_mode == 'fallback':
+                self.get_logger().info('🛡️ [Fallback 돌파 중] Global Relocalization 스킵 (Dead-reckoning 및 벽면 자동 Reseeding 보호)')
+            else:
+                self._trigger_global_relocalization()
 
     def _trigger_global_relocalization(self):
         if self.global_loc_client.wait_for_service(timeout_sec=1.0):
@@ -149,7 +160,12 @@ class LocalizationMonitor(Node):
 
     def publish_state(self):
         """외부 노드 호환 토픽 — 기존 is_lost 의미 유지 (covariance 분실만)"""
-        is_lost = (self.state == 'lost')
+        # Fallback 모드로 안전하게 돌파 중일 때는 safety_stop_node의 모터 차단을 유예
+        if self.robot_mode == 'fallback':
+            is_lost = False
+        else:
+            is_lost = (self.state == 'lost')
+
         self.emergency_pub.publish(Bool(data=is_lost))
 
         if self.state == 'lost':

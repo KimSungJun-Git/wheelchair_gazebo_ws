@@ -23,7 +23,8 @@ function Icon({ name, size = 20, stroke = 1.8, color = 'currentColor', style }) 
 
 function Pill({ tone = 'neutral', icon, children, size = 'md' }) {
   const C = TOKENS.color;
-  const tones = { neutral: { bg: C.surfaceAlt, fg: C.inkDark }, primary: { bg: C.primarySoft, fg: C.primaryDark }, success: { bg: C.successSoft, fg: C.success }, warn: { bg: C.warnSoft, fg: '#8a6500' }, danger: { bg: C.dangerSoft, fg: C.danger } };
+  // neutral은 C.inkDark를 참조했는데 TOKENS에 없는 키라 글자색이 상속돼 버렸다 → C.ink
+  const tones = { neutral: { bg: C.surfaceAlt, fg: C.ink }, primary: { bg: C.primarySoft, fg: C.primaryDark }, success: { bg: C.successSoft, fg: C.success }, warn: { bg: C.warnSoft, fg: '#8a6500' }, danger: { bg: C.dangerSoft, fg: C.danger } };
   const s = tones[tone] || tones.neutral;
   const pad = size === 'lg' ? '10px 16px' : size === 'sm' ? '4px 10px' : '6px 12px';
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: pad, borderRadius: TOKENS.radius.pill, background: s.bg, color: s.fg, fontSize: size === 'lg'?16:14, fontWeight: 700 }}>{icon && <Icon name={icon} size={16} stroke={2.2} />} {children}</span>;
@@ -45,10 +46,18 @@ function BigButton({ children, icon, tone = 'primary', onClick, subtitle }) {
 }
 
 function StatusBar() {
+  // 시각은 실제 시계로 갱신한다. 배터리 퍼센트는 발행하는 토픽이 없어서
+  // 고정값 "78%"를 보여주고 있었으므로 표시하지 않는다 (없는 값을 지어내지 않음).
+  const [now, setNow] = React.useState(new Date());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const clock = now.toLocaleTimeString(IS_ENG ? 'en-US' : 'ko-KR', { hour: '2-digit', minute: '2-digit' });
   return (
     <div style={{ height: 38, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontSize: 14, fontWeight: 700, color: TOKENS.color.primaryDark, background: 'rgba(255,255,255,0.85)', borderBottom: `1px solid ${TOKENS.color.line}` }}>
-      <span>오후 2:34</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon name="signal" size={14} /><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="battery" size={18} /><span>78%</span></span></span>
+      <span>{clock}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon name="signal" size={14} /></span>
     </div>
   );
 }

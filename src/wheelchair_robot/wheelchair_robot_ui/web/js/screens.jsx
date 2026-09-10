@@ -1,54 +1,6 @@
 // ─── 4. Screens (Home, Search, Nav, Alert, Joystick) ──────────────
-
-// 🌟 안전한 내부 다국어(i18n) 설정
-const IS_ENG = localStorage.getItem('wheelchair_lang') === 'en';
-const toggleLanguage = () => {
-  localStorage.setItem('wheelchair_lang', IS_ENG ? 'ko' : 'en');
-  window.location.reload();
-};
-
-const TXT = {
-  hello: IS_ENG ? 'Hello' : '안녕하세요',
-  wheresToday: IS_ENG ? 'Where to today?' : '오늘은 어디로 갈까요?',
-  caregiver: IS_ENG ? 'Caregiver Connected' : '보호자 연결됨',
-  searchBtn: IS_ENG ? 'Search Facilities' : '병동·시설 검색하기',
-  goHomeBtn: IS_ENG ? 'Go to Home Base' : '대기소로 이동',
-  favorites: IS_ENG ? 'Favorites' : '즐겨찾기',
-  myRoom: IS_ENG ? 'My Room' : '내 방 (302호)',
-  rehab: IS_ENG ? 'Rehab Room' : '재활치료실 (2층)',
-  liveMap: IS_ENG ? 'Live Map' : '실시간 주변 지도',
-  sos: 'SOS',
-  endSession: IS_ENG ? '✨ Today\'s Summary' : '✨ 오늘의 주행 요약',
-
-  searchTitle: IS_ENG ? 'Search' : '목적지 검색',
-  recDest: IS_ENG ? 'Recommended' : '추천 목적지',
-  er: IS_ENG ? 'Emergency Room' : '응급실(Emergency)',
-  erDesc: IS_ENG ? '1F West Wing · 120m' : '1층 서관 · 120m',
-  r101: IS_ENG ? 'Room 101' : '101호',
-  r101Desc: IS_ENG ? '2F East Wing · 65m' : '2층 동관 · 65m',
-  distEta: IS_ENG ? 'Distance · ETA' : '거리 · ETA',
-  startRoute: IS_ENG ? 'Start Route' : '경로 시작',
-
-  moving: IS_ENG ? 'Moving to Destination' : '목적지로 이동 중',
-  manual: IS_ENG ? 'Manual' : '수동',
-  auto: IS_ENG ? 'Auto' : '자율',
-  stop: IS_ENG ? 'Stop' : '정지',
-
-  recAction: IS_ENG ? 'Recommended Action' : '권장 조치',
-  resumeRoute: IS_ENG ? 'Resume Route' : '자율 주행 재개',
-  switchToManual: IS_ENG ? 'Switch to Manual' : '수동 모드 전환',
-  goHomeBase: IS_ENG ? 'Return Home' : '홈으로 이동',
-
-  joyTitle: IS_ENG ? 'Manual Drive Mode' : '수동 주행 모드',
-  joySub: IS_ENG ? 'Use the buttons below to control.' : '화면의 큰 버튼을 눌러 직접 조작하세요.',
-  returnAuto: IS_ENG ? 'Return to Auto Mode' : '자율 모드로 복귀',
-  miniMap: IS_ENG ? 'Local Minimap' : '주변 미니맵',
-  manualActive: IS_ENG ? 'Manual Control Active' : '수동 제어 중',
-  fwd: IS_ENG ? 'Hold to move forward' : '누르고 있으면 전진',
-  left: IS_ENG ? 'Turn Left' : '왼쪽 틀기',
-  rev: IS_ENG ? 'Hold to move backward' : '누르고 있으면 후진',
-  right: IS_ENG ? 'Turn Right' : '오른쪽 틀기'
-};
+// i18n(IS_ENG / toggleLanguage / TXT)은 config.js에 있다.
+// activity.jsx·map.jsx가 로드 시점에 TXT를 읽기 때문에 그쪽이 먼저여야 한다.
 
 function HomeScreen({ onSearch, onGoHome, onSOS, onEndSession }) {
   return (
@@ -110,7 +62,7 @@ function SearchScreen({ onBack, onGoHome, onStartRoute }) {
       <StatusBar />
       <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={onBack} style={{ width: 56, height: 56, borderRadius: 28, border: `2px solid ${TOKENS.color.line}`, background: TOKENS.color.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="chevronLeft" size={28} color={TOKENS.color.primaryDark} /></button>
-        <button onClick={onGoHome} style={{ width: 56, height: 56, borderRadius: 28, border: `2px solid ${TOKENS.color.line}`, background: TOKENS.color.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="홈으로"><Icon name="home" size={26} color={TOKENS.color.primaryDark} /></button>
+        <button onClick={onGoHome} style={{ width: 56, height: 56, borderRadius: 28, border: `2px solid ${TOKENS.color.line}`, background: TOKENS.color.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={TXT.homeTitle}><Icon name="home" size={26} color={TOKENS.color.primaryDark} /></button>
         <div style={{ fontSize: 28, fontWeight: 800, color: TOKENS.color.primaryDark, marginLeft: 4 }}>{TXT.searchTitle}</div>
       </div>
       <div style={{ padding: '0 28px', flex: 1, display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 20 }}>
@@ -150,7 +102,7 @@ function NavScreen({ mode, distances, robotWorld, mapConfig, onBack, onGoHome, o
       </div>
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', padding: '20px 24px', gap: 12 }}>
         <button onClick={onBack} style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.95)', border: `2px solid ${TOKENS.color.line}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="chevronLeft" size={28} color={TOKENS.color.primaryDark} /></button>
-        <button onClick={onGoHome} style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.95)', border: `2px solid ${TOKENS.color.line}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Home"><Icon name="home" size={26} color={TOKENS.color.primaryDark} /></button>
+        <button onClick={onGoHome} style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(255,255,255,0.95)', border: `2px solid ${TOKENS.color.line}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={TXT.homeTitle}><Icon name="home" size={26} color={TOKENS.color.primaryDark} /></button>
         <Card pad={0} style={{ padding: '16px 24px', background: TOKENS.color.primary, color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}><Icon name="pin" size={26} stroke={2.5} /> <span style={{ fontWeight: 800, fontSize: 20 }}>{TXT.moving}</span></Card>
       </div>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 24, zIndex: 2, display: 'flex', justifyContent: 'center', gap: 16 }}>
@@ -195,7 +147,7 @@ function AlertScreen({ alertReason, robotWorld, mapConfig, onResume, onManual, o
       <StatusBar />
       <div style={{ background: headerBg, padding: '20px 32px', display: 'flex', alignItems: 'center', gap: 18, borderBottom: `2px solid ${headerBorder}` }}>
         <button onClick={onBack} style={{ width: 48, height: 48, borderRadius: 24, border: `2px solid ${headerBorder}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="chevronLeft" size={24} color={headerFg} /></button>
-        <button onClick={onGoHome} style={{ width: 48, height: 48, borderRadius: 24, border: `2px solid ${headerBorder}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Home"><Icon name="home" size={22} color={headerFg} /></button>
+        <button onClick={onGoHome} style={{ width: 48, height: 48, borderRadius: 24, border: `2px solid ${headerBorder}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={TXT.homeTitle}><Icon name="home" size={22} color={headerFg} /></button>
         <div style={{ width: 56, height: 56, borderRadius: 28, background: iconBg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="alert" size={30} stroke={2.5} /></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 22, fontWeight: 800, color: headerFg, letterSpacing: -0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.title}</div>
@@ -208,12 +160,12 @@ function AlertScreen({ alertReason, robotWorld, mapConfig, onResume, onManual, o
           <Card pad={24} style={{ border: `2px solid ${TOKENS.color.line}` }}>
             <div style={{ fontSize: 16, color: TOKENS.color.inkMuted, fontWeight: 800, marginBottom: 16 }}>{TXT.recAction}</div>
             {!resumeDisabled && <>
-              <BigButton tone="primary" icon="check" subtitle="Resume Route" onClick={onResume}>{TXT.resumeRoute}</BigButton>
+              <BigButton tone="primary" icon="check" subtitle={TXT.subResume} onClick={onResume}>{TXT.resumeRoute}</BigButton>
               <div style={{ height: 12 }} />
             </>}
-            <BigButton tone="soft" icon="home" subtitle="Switch Control" onClick={onManual}>{TXT.switchToManual}</BigButton>
+            <BigButton tone="soft" icon="home" subtitle={TXT.subSwitch} onClick={onManual}>{TXT.switchToManual}</BigButton>
             <div style={{ height: 12 }} />
-            <BigButton tone="soft" icon="home" subtitle="Go to Dock" onClick={onGoHomeBase}>{TXT.goHomeBase}</BigButton>
+            <BigButton tone="soft" icon="home" subtitle={TXT.subDock} onClick={onGoHomeBase}>{TXT.goHomeBase}</BigButton>
           </Card>
         </div>
       </div>
@@ -262,7 +214,7 @@ function JoystickScreen({ robotWorld, mapConfig, onBack, onGoHome, setMode, cmdV
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <button onClick={onBack} style={{ width: 64, height: 64, borderRadius: 32, background: C.surface, border: `2px solid ${C.lineStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="chevronLeft" size={32} color={C.primaryDark} stroke={2.5} /></button>
-            <button onClick={onGoHome} style={{ width: 64, height: 64, borderRadius: 32, background: C.surface, border: `2px solid ${C.lineStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Home"><Icon name="home" size={28} color={C.primaryDark} stroke={2.5} /></button>
+            <button onClick={onGoHome} style={{ width: 64, height: 64, borderRadius: 32, background: C.surface, border: `2px solid ${C.lineStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title={TXT.homeTitle}><Icon name="home" size={28} color={C.primaryDark} stroke={2.5} /></button>
             <div>
               <div style={{ fontSize: 28, fontWeight: 800, color: C.primaryDark }}>{TXT.joyTitle}</div>
               <div style={{ fontSize: 16, color: C.inkMuted, fontWeight: 600, marginTop: 4 }}>{TXT.joySub}</div>

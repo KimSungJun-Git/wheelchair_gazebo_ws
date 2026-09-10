@@ -1,37 +1,38 @@
+# bringup.launch.py
+# 로봇 기반 계층 — TF(URDF) + EKF. 맵핑이든 네비게이션이든 항상 이것 위에 얹는다.
+# 이 조합이 여러 launch에 복붙돼 ekf_filter_node가 이중 실행되던 것을 여기로 모았다.
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
-    # 실제 작업 공간 패키지 경로 가져오기
     desc_pkg = get_package_share_directory('wheelchair_robot_description')
     control_pkg = get_package_share_directory('wheelchair_robot_control')
-    
-    # 파일 경로 지정
+
     urdf_file = os.path.join(desc_pkg, 'urdf', 'wheelchair_robot.urdf')
     ekf_config = os.path.join(control_pkg, 'config', 'ekf.yaml')
-    
-    # URDF 파일 읽기
-    with open(urdf_file, 'r') as infp:
-        robot_desc = infp.read()
-        
+
+    with open(urdf_file, 'r') as f:
+        robot_desc = f.read()
+
     return LaunchDescription([
-        # 1. 로봇 상태 퍼블리셔 (URDF 뼈대 및 기본 TF 발행)
+        # [1] 로봇 뼈대(TF) 발행
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name='robot_state_publisher',
             output='screen',
-            parameters=[{'robot_description': robot_desc, 'use_sim_time': False}]
+            parameters=[{'robot_description': robot_desc, 'use_sim_time': False}],
         ),
-        
-        # 2. EKF 노드 (/odom과 /imu/data를 융합하여 /odometry/filtered 발행)
+
+        # [2] 위치 추정(EKF) — 센서 융합. odom -> base_link TF를 낸다.
         Node(
             package='robot_localization',
             executable='ekf_node',
             name='ekf_filter_node',
             output='screen',
-            parameters=[ekf_config, {'use_sim_time': False}]
-        )
+            parameters=[ekf_config, {'use_sim_time': False}],
+        ),
     ])

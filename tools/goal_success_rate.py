@@ -67,4 +67,6 @@ def main(bag_arg: str) -> None:
     print("=" * 50)
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "goal_results_new")
+    if len(sys.argv) < 2:
+        print("사용법: goal_success_rate.py <bag 경로>"); sys.exit(1)
+    main(sys.argv[1])

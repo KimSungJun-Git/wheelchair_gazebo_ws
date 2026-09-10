@@ -1,0 +1,17 @@
+{
+  "venvPath": "",
+  "extraPaths": [
+    "/home/kim/.local/lib/python3.10/site-packages",
+    "/usr/lib/python3/dist-packages",
+    "/opt/ros/humble/lib/python3.10/site-packages",
+    "src/wheelchair_robot/wheelchair_robot_ai",
+    "src/wheelchair_robot/wheelchair_robot_control",
+    "src/wheelchair_robot/wheelchair_robot_ui"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "build",
+    "install",
+    "log"
+  ]
+}
