@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<!--
+  robot.urdf — 자율주행 휠체어 좌표계 정의
+
+  프레임 구조:
+    base_footprint          바닥 접지면 (Nav2/EKF 기준)
+      └ base_link           차체 기준점
+          ├ imu_link        IMU
+          ├ laser_frame     2D 라이다
+          └ base_cam        카메라
+
+  ⚠️ 아래 치수는 실측으로 교체해야 한다. 현재 값은 소형 베이스 기준이라
+     실제 휠체어 크기와 맞지 않는다 (collision 0.17 x 0.207 m, 질량 7.18 kg).
+     Nav2 footprint와 costmap이 이 값을 그대로 쓰므로 좁은 통로 판정이 틀어진다.
+-->
+<robot name="wheelchair">
+
+  <material name="body_grey">
+    <color rgba="0.4 0.4 0.4 1.0"/>
+  </material>
+
+  <!-- ===== 바닥 접지면 ===== -->
+  <link name="base_footprint"/>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <!-- 접지면에서 차체 기준점까지의 높이 -->
+    <origin xyz="0.0 0.0 0.03355" rpy="0.0 0.0 0.0"/>
+  </joint>
+
+  <!-- ===== 차체 ===== -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <mesh filename="package://wheelchair_description/meshes/bases/robot_n2.stl"
+              scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="body_grey"/>
+    </visual>
+
+    <collision>
+      <!-- 실측 외곽 치수 (길이 28cm x 폭 16cm x 높이 16.5cm) -->
+      <origin xyz="-0.06 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.28 0.16 0.165"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <!-- TODO: 탑승자 포함 질량·관성으로 교체 -->
+      <origin xyz="-0.05645 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <mass value="7.18"/>
+      <inertia ixx="0.15413605166" ixy="0.0" ixz="0.0"
+               iyy="0.20223666666" iyz="0.0"
+               izz="0.12469805166"/>
+    </inertial>
+  </link>
+
+  <!-- ===== IMU ===== -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="-0.108 0.0 0.03355" rpy="0.0 0.0 0.0"/>
+  </joint>
+  <link name="imu_link"/>
+
+  <!-- ===== 2D 라이다 ===== -->
+  <!-- yaw -0.01745 rad(-1도)는 장착 틀어짐 보정값 -->
+  <joint name="scan_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_frame"/>
+    <origin xyz="-0.13 0.0 0.26145" rpy="0.0 0.0 -0.01745"/>
+  </joint>
+  <link name="laser_frame"/>
+
+  <!-- 라이다 드라이버 호환성 링크 (드라이버가 laser 또는 base_scan으로 발행해도 TF 매칭) -->
+  <joint name="laser_alias_joint" type="fixed">
+    <parent link="laser_frame"/>
+    <child link="laser"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+  </joint>
+  <link name="laser"/>
+
+  <joint name="base_scan_alias_joint" type="fixed">
+    <parent link="laser_frame"/>
+    <child link="base_scan"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+  </joint>
+  <link name="base_scan"/>
+
+  <!-- ===== 카메라 ===== -->
+  <!-- TODO: 현재 라이다와 완전히 같은 위치다. 실제 장착 위치로 교체할 것 -->
+  <joint name="cam_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_cam"/>
+    <origin xyz="-0.13 0.0 0.26145" rpy="0.0 0.0 -0.01745"/>
+  </joint>
+  <link name="base_cam"/>
+
+</robot>

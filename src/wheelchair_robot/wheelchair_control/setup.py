@@ -1,0 +1,38 @@
+from setuptools import find_packages, setup 
+import os
+from glob import glob
+
+package_name = 'wheelchair_control'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='kim',
+    maintainer_email='ksjun100848@naver.com',
+    description='Wheelchair Robot Control Package with EKF',
+    license='Apache 2.0',
+    extras_require={
+        'test': ['pytest'],
+    },
+    entry_points={
+        'console_scripts': [
+            'main_controller = wheelchair_control.main_controller:main',
+            'safety_stop_node = wheelchair_control.safety_stop_node:main',
+            'mode_switch_node = wheelchair_control.mode_switch_node:main',
+            'imu_safety_node = wheelchair_control.imu_safety_node:main',
+            'localization_monitor_node = wheelchair_control.localization_monitor_node:main',
+            'dynamic_scan_filter = wheelchair_control.dynamic_scan_filter:main',
+            'imu_relay_node = wheelchair_control.imu_relay_node:main',
+        ],
+    },
+)
