@@ -1,32 +1,102 @@
+# ==========================================================
 # 1. ROS 2 워크스페이스 빌드 및 로그 폴더 제외
+# ==========================================================
 build/
 install/
 log/
+logs/
+*.db3
 
-# 2. 특정 데이터 폴더 및 파일 제외
+# ==========================================================
+# 2. Gazebo 시뮬레이션 관련 파일 및 폴더 제외
+# ==========================================================
+/world/
+/models/
+*.world
+*.sdf
+model.config
+**/Local_0904.pgm
+**/Local_0904.yaml
+**/test_zone_map.pgm
+**/test_zone_map.yaml
+run_gazebo.sh
+run_gazebo_obstacle.sh
+record_trajectory_dataset.sh
+run_trajectory_predictor.sh
+config/obstacles_*.yaml
+src/**/gazebo_bridge.launch.py
+scripts/waypoint_obstacle_manager.py
+scripts/dynamic_obstacle_mover.py
+scripts/trajectory_data_logger.py
+scripts/trajectory_predictor_node.py
+scripts/train_trajectory_predictor.py
+scripts/plot_gru_benchmark.py
+scripts/baseline_recorder.py
+scripts/models/
+scripts/generate_Local_0904_map.py
+scripts/generate_zone_2d_map.py
+scripts/click_map_coords.py
+scripts/coord_picker.py
+
+# ==========================================================
+# 3. 주행 데이터, AI 가중치 및 대용량/분석 결과물 제외
+# ==========================================================
 driving_data/
 dataset/
-logs/
+evaluation/
+*.pt
+*.pth
+*.onnx
+yolov8n.pt
+
+# ==========================================================
+# 4. 개인 문서, 포트폴리오 및 프로젝트 외 폴더 제외
+# ==========================================================
+portfolio/
+python대림/
+python_DAELIM.zip
+knowledge/
+txtmd/
 context.md
 GEMINI.md
 memory.md
+src/wheelchair_robot/wheelchair_camera/wheelchair_camera/report.md
+src/wheelchair_robot/wheelchair_camera/wheelchair_camera/checkerboard.txt
 
-# 3. 특정 소스 패키지 제외
+# ==========================================================
+# 5. 카메라(미연동), 미사용/구버전/작동불가 파일 및 백업 제외
+# ==========================================================
 src/wheelchair_core/
+src/wheelchair_robot/wheelchair_camera/
+src/wheelchair_robot/wheelchair_control/param/
+src/wheelchair_robot/wheelchair_control/wheelchair_control/lidar_.py
+src/**/__*.launch.py
+src/wheelchair_robot/wheelchair_navigation2/param/wheelchair_ws.yaml
+scripts/run_baseline.sh
+Makefile
+*.bak
+*_bak
+*.ascii_bak
+*.before_clean
+*copy*.yaml
 
-# 4. 에디터 설정 폴더 제외
+# ==========================================================
+# 6. 에디터 설정 및 캐시/빌드 찌꺼기 제외
+# ==========================================================
 .vscode/
 .serena/
-
-# 5. Python 캐시 및 빌드 찌꺼기 (추가 권장)
+.idea/
+.DS_Store
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
 .pytest_cache/
+node_modules/
 
-# 6. graphify 생성물 제외
+# ==========================================================
+# 7. TF / Graphviz 생성물 제외
+# ==========================================================
 /frames_*.gv
 /frames_*.pdf
 
-# 주의: .gitignore와 README.md는 추적해야 하므로 이 목록에서 뺐습니다.

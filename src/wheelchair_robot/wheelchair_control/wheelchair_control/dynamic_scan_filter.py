@@ -57,6 +57,8 @@ class Track:
         self.t_cpa: float = 0.0
         self.d_cpa: float = 0.0
         self.reason: str = 'new'
+        # 마지막으로 속도 기반 동적 판정을 받은 시각 [s] (멈춘 보행자 동적 유지용)
+        self.last_dynamic_t: Optional[float] = None
 
     @property
     def pos(self) -> np.ndarray:
@@ -144,6 +146,8 @@ class DynamicScanFilter(Node):
         self.declare_parameter('v_static_thresh', 0.10)
         self.declare_parameter('tcpa_max', 4.0)
         self.declare_parameter('dcpa_max', 0.50)
+        # 한 번 동적으로 판정된 트랙은 멈춰도 이 시간 동안 동적으로 유지 (/scan_static 유입 방지)
+        self.declare_parameter('dynamic_hold_sec', 5.0)
         self.declare_parameter('publish_markers', True)
 
         self.scan_topic: str = str(self.get_parameter('scan_topic').value)
@@ -170,6 +174,7 @@ class DynamicScanFilter(Node):
         self.v_static: float = float(self.get_parameter('v_static_thresh').value)
         self.tcpa_max: float = float(self.get_parameter('tcpa_max').value)
         self.dcpa_max: float = float(self.get_parameter('dcpa_max').value)
+        self.dynamic_hold_sec: float = float(self.get_parameter('dynamic_hold_sec').value)
 
         self.publish_markers_enabled: bool = bool(self.get_parameter('publish_markers').value)
 
@@ -228,7 +233,7 @@ class DynamicScanFilter(Node):
             measurements.append({'z': p_odom, 'beams': cluster['beams']})
 
         self.track_step(measurements, now)
-        self.evaluate_threat(yaw)
+        self.evaluate_threat(yaw, now)
         self.publish_scan(scan, self.tracks)
 
         if self.publish_markers_enabled:
@@ -381,7 +386,7 @@ class DynamicScanFilter(Node):
     # ------------------------------------------------------------------ #
     #  3) CPA(최근접 접근점) 위협 판정                                    #
     # ------------------------------------------------------------------ #
-    def evaluate_threat(self, robot_yaw: float) -> None:
+    def evaluate_threat(self, robot_yaw: float, now: float) -> None:
         """CPA는 관성계(odom)에서 계산 (t_cpa / d_cpa는 프레임 무관)"""
         c, s = math.cos(robot_yaw), math.sin(robot_yaw)
         R_wb = np.array([[c, -s], [s, c]])          # base -> odom
@@ -418,6 +423,15 @@ class DynamicScanFilter(Node):
 
             # --- 2) 정적 장애물 판정 (절대 속도 < v_dynamic_thresh) ---
             if v_obs < self.v_dynamic_thresh:
+                # 최근 dynamic_hold_sec 이내에 동적이었던 트랙(멈춘 보행자)은 동적 유지
+                # → /scan_static 에 섞여 글로벌 경로 재계획(우회)을 유발하지 않도록 함
+                if (t.last_dynamic_t is not None and
+                        now - t.last_dynamic_t <= self.dynamic_hold_sec):
+                    t.is_dynamic = True
+                    t.is_static = False
+                    t.threat = False
+                    t.reason = 'dyn-hold'
+                    continue
                 t.is_dynamic = False
                 t.is_static = True
                 t.threat = False
@@ -427,6 +441,7 @@ class DynamicScanFilter(Node):
             # --- 3) 동적 장애물 판정 (절대 속도 >= v_dynamic_thresh) ---
             t.is_dynamic = True
             t.is_static = False
+            t.last_dynamic_t = now
 
             # 상대속도가 0에 근접한 경우 (동일 속도 주행 등)
             if vv < self.v_static ** 2:

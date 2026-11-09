@@ -48,21 +48,32 @@ class SafetyStopNode(Node):
         self.clearance_min_m = self.get_parameter('clearance_min_m').get_parameter_value().double_value
 
         # 동적 장애물(CPA 위협) 액추에이션 설정
+        self.declare_parameter('threat_stop_enabled', False)
         self.declare_parameter('threat_stop_dist_m', 0.50)   # 정지 대기 전방 거리 (0.50m)
         self.declare_parameter('threat_stop_width_m', 0.70)  # 정지 대기 폴리곤 폭 (±0.35m)
+        self.declare_parameter('threat_slow_enabled', False)
         self.declare_parameter('threat_slow_dist_m', 1.00)   # 서행 전방 거리 (1.00m)
         self.declare_parameter('threat_slow_width_m', 0.90)  # 서행 폴리곤 폭 (±0.45m)
         self.declare_parameter('threat_min_points', 2)       # 위협 판정 최소 빔 수
-        self.declare_parameter('emergency_scan_dist_m', 0.15)   # 원본 스캔 초근접 긴급 정지 거리 (0.15m)
-        self.declare_parameter('emergency_scan_width_m', 0.45)  # 원본 스캔 초근접 긴급 정지 폭
+        self.declare_parameter('emergency_scan_enabled', True)
+        self.declare_parameter('emergency_scan_min_x_m', 0.20)  # 앞범퍼 위치 (측면 벽 제외)
+        self.declare_parameter('emergency_scan_dist_m', 0.60)   # 원본 스캔 초근접 긴급 정지 거리 (0.60m)
+        self.declare_parameter('emergency_scan_width_m', 0.22)  # 원본 스캔 초근접 긴급 정지 폭 (±0.11m)
+        self.declare_parameter('emergency_scan_hold_sec', 3.0)  # 초근접 정지 발동 시 정지 유지 시간 (초)
 
+        self.threat_stop_enabled = self.get_parameter('threat_stop_enabled').get_parameter_value().bool_value
         self.threat_stop_dist_m = self.get_parameter('threat_stop_dist_m').get_parameter_value().double_value
         self.threat_stop_width_m = self.get_parameter('threat_stop_width_m').get_parameter_value().double_value
+        self.threat_slow_enabled = self.get_parameter('threat_slow_enabled').get_parameter_value().bool_value
         self.threat_slow_dist_m = self.get_parameter('threat_slow_dist_m').get_parameter_value().double_value
         self.threat_slow_width_m = self.get_parameter('threat_slow_width_m').get_parameter_value().double_value
         self.threat_min_points = self.get_parameter('threat_min_points').get_parameter_value().integer_value
+        self.emergency_scan_enabled = self.get_parameter('emergency_scan_enabled').get_parameter_value().bool_value
+        self.emergency_scan_min_x_m = self.get_parameter('emergency_scan_min_x_m').get_parameter_value().double_value
         self.emergency_scan_dist_m = self.get_parameter('emergency_scan_dist_m').get_parameter_value().double_value
         self.emergency_scan_width_m = self.get_parameter('emergency_scan_width_m').get_parameter_value().double_value
+        self.emergency_scan_hold_sec = self.get_parameter('emergency_scan_hold_sec').get_parameter_value().double_value
+        self.last_emergency_time = None
 
         # ===== 동적 위협 상태 및 정면 고정(Heading Lock) 제어 =====
         self.threat_state = 'CLEAR'  # 'STOP', 'SLOW', 'CLEAR'
@@ -167,9 +178,14 @@ class SafetyStopNode(Node):
 
     #  센서 콜백 (마지막 수신 시각 기록)
     def lidar_callback(self, msg: LaserScan):
-        self.last_seen['lidar'] = self.get_clock().now()
+        now = self.get_clock().now()
+        self.last_seen['lidar'] = now
 
-        # 원본 /scan에서 초근접(0.35m 이내) 긴급 충돌 위험 검사 (Fail-safe 긴급 정지)
+        if not self.emergency_scan_enabled:
+            self.set_reason('lidar_emergency', False)
+            return
+
+        # 원본 /scan에서 초근접(앞범퍼 기준) 긴급 충돌 위험 검사 (Fail-safe 긴급 정지)
         emergency_points_count = 0
         angle = msg.angle_min
         emergency_half_width = self.emergency_scan_width_m / 2.0
@@ -178,14 +194,31 @@ class SafetyStopNode(Node):
             if math.isfinite(distance) and msg.range_min <= distance <= msg.range_max:
                 x = distance * math.cos(angle)
                 y = distance * math.sin(angle)
-                if 0.05 < x <= self.emergency_scan_dist_m and abs(y) <= emergency_half_width:
+                if self.emergency_scan_min_x_m <= x <= self.emergency_scan_dist_m and abs(y) <= emergency_half_width:
                     emergency_points_count += 1
             angle += msg.angle_increment
 
-        self.set_reason('lidar_emergency', emergency_points_count >= 3)
+        is_detected = (emergency_points_count >= 3)
+        if is_detected:
+            self.last_emergency_time = now
+            self.set_reason('lidar_emergency', True)
+        else:
+            if self.last_emergency_time is not None:
+                elapsed = (now - self.last_emergency_time).nanoseconds / 1e9
+                if elapsed < self.emergency_scan_hold_sec:
+                    self.set_reason('lidar_emergency', True)
+                else:
+                    self.last_emergency_time = None
+                    self.set_reason('lidar_emergency', False)
+            else:
+                self.set_reason('lidar_emergency', False)
 
     def scan_threat_callback(self, msg: LaserScan):
         """CPA 기반 위협 스캔(/scan_threat)에서 정지 및 감속 영역 내 포인트 검사"""
+        if not self.threat_stop_enabled and not self.threat_slow_enabled:
+            self.threat_state = 'CLEAR'
+            return
+
         stop_points_count = 0
         slow_points_count = 0
         min_dist = 99.0
@@ -214,12 +247,12 @@ class SafetyStopNode(Node):
 
         self.threat_nearest_dist = min_dist
         prev_state = self.threat_state
-        if stop_points_count >= self.threat_min_points:
+        if self.threat_stop_enabled and stop_points_count >= self.threat_min_points:
             self.threat_state = 'STOP'
             if self.locked_yaw is None:
                 self.locked_yaw = self.current_yaw
             self.threat_clear_time = None
-        elif slow_points_count >= self.threat_min_points:
+        elif self.threat_slow_enabled and slow_points_count >= self.threat_min_points:
             self.threat_state = 'SLOW'
             if self.locked_yaw is None:
                 self.locked_yaw = self.current_yaw
@@ -312,9 +345,14 @@ class SafetyStopNode(Node):
 
         # 1) 비상 정지 (IMU 충격, 위치 분실, 라이다 초근접 등)
         if self.is_emergency:
-            # 단, 라이다 전방 초근접 위험뿐이고 벽에서 빠져나오기 위한 후진(linear.x < 0) 명령이면 탈출 허용
-            if set(self.dangerous_sensors) == {'lidar_emergency'} and msg.linear.x < 0.0:
-                pass
+            # 단, 라이다 전방 초근접 위험뿐인 경우: 전진(linear.x > 0)만 차단하고 회전 및 후진 탈출은 허용
+            if set(self.dangerous_sensors) == {'lidar_emergency'}:
+                if msg.linear.x > 0.0:
+                    safe_msg = Twist()
+                    safe_msg.angular.z = msg.angular.z
+                    publisher.publish(safe_msg)
+                    self.publish_action(source, 'modified', 'lidar_emergency')
+                    return
             else:
                 publisher.publish(Twist())
                 self.publish_action(source, 'blocked', ','.join(self.dangerous_sensors))

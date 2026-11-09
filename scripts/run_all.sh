@@ -7,7 +7,7 @@ echo "========================================="
 echo "🟢 [1단계] 주행 로그 수집을 시작합니다..."
 echo "종료하려면 언제든 Ctrl + C 를 누르세요."
 echo "========================================="
-ros2 launch wheelchair_robot_ai ai_logger.launch.py
+ros2 launch wheelchair_ai ai_logger.launch.py
 
 echo ""
 echo "========================================="

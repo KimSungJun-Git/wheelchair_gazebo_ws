@@ -28,16 +28,16 @@ if ! command -v gnome-terminal >/dev/null; then
     tmux new-session -d -s nav
 fi
 
-run "1-bringup"   "ros2 launch wheelchair_robot_control bringup.launch.py"
+run "1-bringup"   "ros2 launch wheelchair_control bringup.launch.py"
 sleep 3   # TF와 EKF가 먼저 올라와야 Nav2가 붙는다
-run "2-nav2"      "ros2 launch wheelchair_robot_navigation2 navigation2.launch.py"
+run "2-nav2"      "ros2 launch wheelchair_navigation2 navigation2.launch.py"
 sleep 3
-run "3-mode"      "ros2 run wheelchair_robot_control mode_switch_node"
+run "3-mode"      "ros2 run wheelchair_control mode_switch_node"
 # teleop은 수동 조작용이라 /cmd_vel_teleop으로 remap — 이걸 빼면 안전 필터를 건너뛴다
-run "4-teleop"    "ros2 run wheelchair_robot_teleop teleop_keyboard --ros-args -r cmd_vel:=/cmd_vel_teleop"
-run "5-imu"       "ros2 run wheelchair_robot_control imu_safety_node"
-run "6-loc"       "ros2 run wheelchair_robot_control localization_monitor_node"
-run "7-ui"        "ros2 launch wheelchair_robot_ui web_ui.launch.py"
+run "4-teleop"    "ros2 run wheelchair_teleop teleop_keyboard --ros-args -r cmd_vel:=/cmd_vel_teleop"
+run "5-imu"       "ros2 run wheelchair_control imu_safety_node"
+run "6-loc"       "ros2 run wheelchair_control localization_monitor_node"
+run "7-ui"        "ros2 launch wheelchair_ui web_ui.launch.py"
 
 command -v gnome-terminal >/dev/null || tmux attach -t nav
 

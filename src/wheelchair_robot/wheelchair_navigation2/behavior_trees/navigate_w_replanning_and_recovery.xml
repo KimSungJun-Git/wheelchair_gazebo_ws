@@ -1,0 +1,47 @@
+
+<!--
+  This Behavior Tree replans the global path periodically at 1 Hz and it also has
+  recovery actions specific to planning / control as well as general system issues.
+  This will be continuous if a kinematically valid planner is selected.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="5" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <!-- 이동 거리 기준(50cm 이동 시) 전역 경로 재계획 -->
+        <DistanceController distance="0.50" global_frame="map" robot_base_frame="base_footprint">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </DistanceController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <!-- 1. 동적 위협(/scan_threat)이 있는 경우: 충돌 회피를 위해 제자리 대기(Wait) 수행 -->
+          <Sequence name="WaitOnDynamicThreat">
+            <IsThreatPresent topic="/scan_threat"/>
+            <Wait wait_duration="2.0"/>
+          </Sequence>
+
+          <!-- 2. 동적 위협이 없는 경우 (정적 장애물 고립): 로컬 코스트맵 클리어 후 안전 후진(20cm) 수행 -->
+          <Sequence name="BackUpOnStatic">
+            <Inverter>
+              <IsThreatPresent topic="/scan_threat"/>
+            </Inverter>
+            <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <BackUp backup_dist="0.20" backup_speed="0.08"/>
+          </Sequence>
+
+          <!-- 3. 일반 대기 완충 -->
+          <Wait wait_duration="1.0"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

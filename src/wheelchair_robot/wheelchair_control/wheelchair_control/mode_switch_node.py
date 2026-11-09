@@ -525,9 +525,11 @@ class ModeSwitchNode(Node):
     def key_listener(self):
         old_settings = termios.tcgetattr(sys.stdin)
         try:
-            tty.setraw(sys.stdin.fileno())
+            tty.setcbreak(sys.stdin.fileno())
             while rclpy.ok():
                 key = sys.stdin.read(1)
+                if not key:
+                    break
                 if key in ('m', 'M'):
                     self.switch_mode()
                 elif key in ('h', 'H'):
@@ -536,11 +538,23 @@ class ModeSwitchNode(Node):
                     self.get_logger().info('종료합니다.')
                     rclpy.shutdown()
                     break
+        except Exception:
+            pass
         finally:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            except Exception:
+                pass
 
 
 def main(args=None):
+    old_settings = None
+    if sys.stdin.isatty():
+        try:
+            old_settings = termios.tcgetattr(sys.stdin)
+        except Exception:
+            pass
+
     rclpy.init(args=args)
     node = ModeSwitchNode()
     try:
@@ -551,6 +565,11 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+        if old_settings is not None:
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     main()

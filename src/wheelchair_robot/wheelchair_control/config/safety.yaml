@@ -9,15 +9,20 @@ safety_stop_node:
     clearance_min_m: 0.20
     # 이 시간 넘게 /cmd_vel_nav가 없으면 idle로 기록
     cmd_idle_timeout_sec: 1.0
-    # 동적 장애물(CPA 위협 /scan_threat) 정지 및 서행 설정
+    # 동적 장애물(CPA 위협 /scan_threat) 정지 및 서행 설정 (비활성화: 초근접 정지만 사용)
+    threat_stop_enabled: false
     threat_stop_dist_m: 0.50    # 전방 정지 거리 [m] (0.5m)
-    threat_stop_width_m: 0.70   # 전방 정지 폭 (±0.35m)
+    threat_stop_width_m: 0.60   # 전방 정지 폭 (±0.30m)
+    threat_slow_enabled: false
     threat_slow_dist_m: 1.00    # 전방 감속 서행 거리 [m] (1.0m)
     threat_slow_width_m: 0.90   # 전방 감속 서행 폭 (±0.45m)
     threat_min_points: 2        # 위협 판정 최소 빔 개수
-    # 원본 /scan 초근접 긴급 비상정지 설정 (회피 시 오발동 방지)
-    emergency_scan_dist_m: 0.15   # 초근접 비상정지 거리 [m] (0.15m)
-    emergency_scan_width_m: 0.45  # 초근접 비상정지 폭 (±0.225m)
+    # 원본 /scan 초근접 긴급 비상정지 설정 (라이다 기준 앞범퍼 0.21m -> 전방 0.20~0.60m, 폭 ±0.11m)
+    emergency_scan_enabled: true
+    emergency_scan_min_x_m: 0.20  # 앞범퍼 시작 위치 [m] (측면 벽 오감지 방지)
+    emergency_scan_dist_m: 0.60   # 초근접 비상정지 거리 [m] (라이다 기준 60cm, 앞범퍼 기준 +39cm)
+    emergency_scan_width_m: 0.22  # 초근접 비상정지 폭 (±0.11m, 차체 폭 ±0.08m + 여유 3cm)
+    emergency_scan_hold_sec: 3.0  # 초근접 비상정지 발동 시 정지 유지 시간 [s]
 
 mode_switch_node:
   ros__parameters:
@@ -42,7 +47,9 @@ log_collector_node:
 dynamic_scan_filter:
   ros__parameters:
     odom_topic: /odometry/filtered
+    max_consider_range: 1.50
+    dynamic_hold_sec: 5.0         # 한 번 동적 판정된 트랙은 멈춰도 5초간 동적 유지
     v_dynamic_thresh: 0.30
     tcpa_max: 4.0
-    dcpa_max: 0.50
+    dcpa_max: 0.30
     max_cluster_width: 0.80

@@ -4,8 +4,8 @@
 set -u
 
 WS=~/wheelchair_ws
-MAP_DIR="$WS/src/wheelchair_robot/wheelchair_robot_navigation2/map"
-MAP_NAME="${1:-wheelchair_robot_world}"
+MAP_DIR="$WS/src/wheelchair_robot/wheelchair_navigation2/map"
+MAP_NAME="${1:-world}"
 
 source /opt/ros/humble/setup.bash
 source "$WS/install/setup.bash"
@@ -30,10 +30,10 @@ if ! command -v gnome-terminal >/dev/null; then
     tmux new-session -d -s mapping
 fi
 
-run "1-cartographer" "ros2 launch wheelchair_robot_cartographer cartographer.launch.py"
+run "1-cartographer" "ros2 launch wheelchair_cartographer cartographer.launch.py"
 sleep 4
 # 맵핑 teleop은 remap 없이 /cmd_vel 직접 — safety_stop_node를 거치지 않는다
-run "2-teleop"       "ros2 run wheelchair_robot_teleop teleop_keyboard"
+run "2-teleop"       "ros2 run wheelchair_teleop teleop_keyboard"
 
 command -v gnome-terminal >/dev/null || tmux attach -t mapping
 
