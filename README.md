@@ -16,7 +16,7 @@ ROS 2 Humble에서 동작하는 실내 자율주행 전동 휠체어 프로젝�
 ### 동적 장애물 분리와 주행 복구
 `dynamic_scan_filter`는 2D LiDAR 스캔(`/scan`)을 등속 칼만 필터로 추적해 최근접 접근점(CPA)을 계산합니다. 다가오는 보행자처럼 부딪힐 위험이 있는 빔은 `/scan_threat`로, 벽이나 기둥 같은 고정 장애물 빔은 `/scan_static`으로 나누어 발행합니다.
 
-Nav2 행동 트리(`navigate_w_replanning_and_recovery.xml`)에는 C++ 조건 플러그인 `IsThreatPresent`(`is_threat_present_condition_bt_node.cpp`)를 붙였습니다. 전방에 동적 위협(`/scan_threat`)이 있을 때는 무리하게 경로를 틀거나 후진하지 않고 제자리에서 2초간 멈춰 기다리고(`Wait`), 정적 장애물에 갇혔을 때만 로컬 코스트맵을 비운 뒤 20cm 후진(`BackUp`)합니다. 계단이나 출입 제한 구역은 Keepout Filter(`keepout_mask.yaml`)로 막고, 서행 구역은 Speed Filter(`speed_mask.yaml`)로 최고 속도를 낮춥니다.
+Nav2 행동 트리(`navigate_w_replanning_and_recovery.xml`)에는 C++ 조건 플러그인 `IsThreatPresent`(`is_threat_present_condition_bt_node.cpp`)를 붙였습니다. 전방에 동적 위협(`/scan_threat`)이 있을 때는 무리하게 경로를 틀거나 후진하지 않고 제자리에서 2초간 멈춰 기다리고(`Wait`), 정적 장애물에 갇혔을 때만 로컬 코스트맵을 비운 뒤 20cm 후진(`BackUp`)합니다. 계단이나 출입 제한 구역은 Keepout Filter(`keepout_mask.pgm`, `keepout_mask.yaml`)로 막아 경로 계획에서 제외합니다.
 
 ### 다중 안전 감시와 제어권 전환
 주행 중 안전 제어는 네 노드가 나누어 맡습니다.
@@ -39,7 +39,7 @@ wheelchair_gazebo_ws/
 └── src/wheelchair_robot/
     ├── wheelchair_description/         # 로봇 URDF(robot.urdf), 3D 메쉬(robot_n2.stl), RViz 설정
     ├── wheelchair_cartographer/        # Cartographer 2D SLAM 설정(cartographer.lua) 및 런치
-    ├── wheelchair_navigation2/         # Nav2 파라미터(navigation2.yaml), 맵, Keepout/Speed 마스크,
+    ├── wheelchair_navigation2/         # Nav2 파라미터(navigation2.yaml), 맵(world.pgm), Keepout 마스크(keepout_mask.pgm),
     │                                   # 커스텀 BT XML 및 C++ 조건 노드(is_threat_present_condition_bt_node.cpp)
     ├── wheelchair_control/             # 제어 및 안전 패키지
     │   ├── config/                     # ekf.yaml, safety.yaml
@@ -62,7 +62,7 @@ wheelchair_gazebo_ws/
   └─ uul.py      (/ultrasonic/range, /left, /right)
 
 [자율주행 및 안전 제어 계층]
-  [Nav2 (BT + Keepout/Speed Filter)]
+  [Nav2 (BT + Keepout Filter)]
         │  (/cmd_vel_nav)
         ▼
   [safety_stop_node] ◄── /scan, /scan_threat, /ultrasonic/*, /emergency_stop/{imu,localization}
@@ -75,8 +75,8 @@ wheelchair_gazebo_ws/
 
 [웹 UI 및 관제 계층]
   /safety_action, /sos_trigger, /amcl_pose
-        ├──► [admin_server (FastAPI :8090)] ◄──► 관제 대시보드 (http://<host>:8000/admin/Dashboard.html)
-        └──► [rosbridge_websocket (:9090)]  ◄──► 탑승자 웹 UI  (http://<host>:8000/Wheelchair_SLAM_UI.html)
+        ├──► [admin_server (FastAPI :8090)] ◄──► 관제 대시보드 (http://localhost:8000/admin/Dashboard.html)
+        └──► [rosbridge_websocket (:9090)]  ◄──► 탑승자 웹 UI  (http://localhost:8000/Wheelchair_SLAM_UI.html)
 ```
 
 ---
@@ -90,68 +90,77 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-### 라즈베리파이 (센서 구동)
-주행 전 라즈베리파이에서 센서 드라이버 4종을 먼저 띄웁니다.
+### 라즈베리파이 (센서 구동 및 네트워크 설정)
 ```bash
-# IMU
+# imu
 ros2 launch stella_ahrs stella_ahrs_launch.py
 
-# 2D LiDAR
+# lidar
 ros2 launch ydlidar_ros2_driver ydlidar_launch.py
 
-# 모터 드라이버 및 휠 오도메트리
+# odom
 ros2 launch stella_md stella_md_launch.py
 
-# 3방향 초음파 센서
-cd ~/colcon_ws/src/ && python3 uul.py
+# ultrasonic
+cd ~/colcon_ws/src/
+python3 uul.py
 ```
 
-### 원격 PC (자율주행 및 안전 제어 실행)
-각 터미널에서 `source install/setup.bash`를 적용한 뒤 하나씩 실행합니다.
-
+와이파이 절전모드로 인한 토픽 지연을 막기 위해 절전모드를 끕니다.
 ```bash
-# 터미널 1: URDF TF + IMU 릴레이 + EKF
-ros2 launch wheelchair_control bringup.launch.py
+# 절전모드 확인 (라즈베리파이)
+iwconfig wlan0 | grep "Power Management"
+iw dev wlan0 get power_save
 
-# 터미널 2: Nav2 자율주행 + Keepout/Speed 필터 + 동적 스캔 필터 및 안전 정지 노드 + RViz2
+# 절전모드 off (라즈베리파이)
+sudo iwconfig wlan0 power off
+sudo iw dev wlan0 set power_save off
+
+# 원격 PC 절전모드 off 및 FastRTPS 설정 초기화
+sudo iwconfig wlo1 power off
+unset FASTRTPS_DEFAULT_PROFILES_FILE
+```
+
+### 원격 PC (네비게이션 실행)
+```bash
+# 터미널 1: TF + EKF 및 안전 필터(동적 스캔 필터 + 안전 정지)
+ros2 launch wheelchair_control bringup.launch.py
+ros2 launch wheelchair_control safety.launch.py
+
+# 터미널 2: Nav2 네비게이션
 ros2 launch wheelchair_navigation2 navigation2.launch.py
 
-# 터미널 3: 수동/자율 모드 전환 및 속도 중재 노드
+# 터미널 3: 모드 전환 (키보드 m/h/q 제어 — 단독 실행)
 ros2 run wheelchair_control mode_switch_node
 
-# 터미널 4: 키보드 수동 조작 (/cmd_vel_teleop으로 토픽 리매핑)
+# 터미널 4: 조이스틱/키보드
 ros2 run wheelchair_teleop teleop_keyboard --ros-args -r cmd_vel:=/cmd_vel_teleop
 
-# 터미널 5: 차체 기울기 및 충격 감시 노드
+# 터미널 5: 휠체어 기울기 상태
 ros2 run wheelchair_control imu_safety_node
 
-# 터미널 6: AMCL 위치 추정 이상 감시 노드
+# 터미널 6: 위치추정 2차 감시
 ros2 run wheelchair_control localization_monitor_node
 
-# 터미널 7: 탑승자 웹 UI 및 관제 대시보드
+# 터미널 7: WEB UI
 ros2 launch wheelchair_ui web_ui.launch.py
 ```
 
-### 원격 PC (SLAM 맵핑 실행)
-새 지도를 그릴 때는 Nav2 대신 Cartographer와 키보드 조작 노드를 띄웁니다. (`cartographer.launch.py` 안에 `bringup.launch.py`가 포함되어 있으므로 `bringup`을 따로 켜지 않습니다.)
-
+### 원격 PC (맵핑 실행)
 ```bash
-# 터미널 1: Cartographer SLAM (TF + EKF + Cartographer + RViz2)
+# 터미널 1: TF + EKF + Cartographer + Occupancy + RViz (전부 포함)
 ros2 launch wheelchair_cartographer cartographer.launch.py
 
-# 터미널 2: 수동 주행으로 지도 작성
+# 터미널 2: 키보드 (remap 없이)
 ros2 run wheelchair_teleop teleop_keyboard
 
-# 터미널 3: 맵핑 완료 후 지도 파일 저장
-ros2 run nav2_map_server map_saver_cli -f src/wheelchair_robot/wheelchair_navigation2/map/world
+# 맵 저장
+ros2 run nav2_map_server map_saver_cli -f ~/wheelchair_gazebo_ws/src/wheelchair_robot/wheelchair_navigation2/map/world
 ```
 
 ### 웹 UI 접속 주소
-| 화면 구분 | 접속 URL | 비고 |
-|---|---|---|
-| 랜딩 페이지 | `http://localhost:8000/` | 탑승자 화면 / 관제 대시보드 진입 |
-| 탑승자 화면 | `http://localhost:8000/Wheelchair_SLAM_UI.html` | 목적지 이동, 수동 조작, SOS 호출 |
-| 관제 대시보드 | `http://localhost:8000/admin/Dashboard.html` | 실시간 관제 및 통계 (`smac` / `0000`) |
+- 사용자: `http://localhost:8000/Wheelchair_SLAM_UI.html`
+- 관리자: `http://localhost:8000/admin/Dashboard.html`
 
 ---
 

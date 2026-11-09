@@ -34,7 +34,6 @@ def generate_launch_description():
         convert_types=True,
     )
     keepout_mask_yaml = os.path.join(pkg_dir, 'map', 'keepout_mask.yaml')
-    speed_mask_yaml = os.path.join(pkg_dir, 'map', 'speed_mask.yaml') 
 
     # ===== 실행 인자 =====
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
@@ -71,34 +70,6 @@ def generate_launch_description():
             }],
         ),
 
-        # ===== 2. 서행 구역 (Speed Limit) 필터 =====
-        Node(
-            package='nav2_map_server',
-            executable='costmap_filter_info_server',
-            name='speed_filter_info_server',
-            output='screen',
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                'type': 1,                                    # 1: SpeedLimit
-                'filter_info_topic': '/speed_filter_info',
-                'mask_topic': '/speed_filter_mask',
-                'base': 0.0,
-                'multiplier': 1.0,                            # 마스크 픽셀값 비율(%) 반영
-            }],
-        ),
-        Node(
-            package='nav2_map_server',
-            executable='map_server',
-            name='speed_mask_server',
-            output='screen',
-            parameters=[{
-                'yaml_filename': speed_mask_yaml,
-                'topic_name': 'speed_filter_mask', 
-                'frame_id': 'map',
-                'use_sim_time': use_sim_time,
-            }],
-        ),
-
         # ===== 코스트맵 필터 라이프사이클 매니저 =====
         Node(
             package='nav2_lifecycle_manager',
@@ -110,8 +81,6 @@ def generate_launch_description():
                 'node_names': [
                     'keepout_filter_info_server',
                     'keepout_mask_server',
-                    'speed_filter_info_server',
-                    'speed_mask_server',
                 ],
             }],
         ),

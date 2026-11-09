@@ -73,15 +73,6 @@ def generate_launch_description():
             name='admin_backend_server',
             output='screen',
         ),
-        Node(
-            package='wheelchair_ai',
-            executable='log_collector_node',
-            name='log_collector_node',
-            output='screen',
-            parameters=[os.path.join(
-                get_package_share_directory('wheelchair_control'),
-                'config', 'safety.yaml')],
-        ),
 
         # 종료 시 빈 세션 정리 이벤트 핸들러
         RegisterEventHandler(

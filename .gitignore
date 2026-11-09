@@ -19,6 +19,9 @@ model.config
 **/Local_0904.yaml
 **/test_zone_map.pgm
 **/test_zone_map.yaml
+**/speed_mask.pgm
+**/speed_mask.yaml
+**/generate_speed_mask.py
 run_gazebo.sh
 run_gazebo_obstacle.sh
 record_trajectory_dataset.sh

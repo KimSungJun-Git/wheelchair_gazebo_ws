@@ -26,7 +26,6 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'main_controller = wheelchair_control.main_controller:main',
             'safety_stop_node = wheelchair_control.safety_stop_node:main',
             'mode_switch_node = wheelchair_control.mode_switch_node:main',
             'imu_safety_node = wheelchair_control.imu_safety_node:main',
