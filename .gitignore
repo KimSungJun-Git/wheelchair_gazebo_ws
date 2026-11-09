@@ -64,15 +64,18 @@ src/wheelchair_robot/wheelchair_camera/wheelchair_camera/report.md
 src/wheelchair_robot/wheelchair_camera/wheelchair_camera/checkerboard.txt
 
 # ==========================================================
-# 5. 카메라(미연동), 미사용/구버전/작동불가 파일 및 백업 제외
+# 5. 미연동/제외 패키지(AI, 카메라), 스크립트, 미사용 파일 및 백업 제외
 # ==========================================================
 src/wheelchair_core/
+src/wheelchair_robot/wheelchair_ai/
 src/wheelchair_robot/wheelchair_camera/
 src/wheelchair_robot/wheelchair_control/param/
 src/wheelchair_robot/wheelchair_control/wheelchair_control/lidar_.py
 src/**/__*.launch.py
 src/wheelchair_robot/wheelchair_navigation2/param/wheelchair_ws.yaml
-scripts/run_baseline.sh
+scripts/
+run_nav.sh
+run_mapping.sh
 Makefile
 *.bak
 *_bak
