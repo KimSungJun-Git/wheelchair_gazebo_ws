@@ -3,6 +3,9 @@
 ROS 2 Humble에서 동작하는 실내 자율주행 전동 휠체어 프로젝트입니다.  
 탑승자는 터치 화면에서 목적지(병실, 응급실, 대기실 등)를 고르거나 수동 조작과 SOS 호출을 직접 실행합니다. 휠체어는 2D LiDAR, IMU, 휠 오도메트리, 3방향 초음파 센서를 확장 칼만 필터(EKF)와 Nav2에 묶어 장애물을 피하며 주행하고, 보호자와 관리자는 관제 대시보드에서 현재 위치와 안전 상태를 실시간으로 확인합니다.
 
+## 주행 시연 영상
+- [실내 자율주행 휠체어 주행 영상 보기 (Google Drive)](https://docs.google.com/videos/d/1K7URg8u6nNYTwtFxxSr6Geb8zvsFcgvLhU9YpToEdCE/edit?usp=drive_link)
+
 ---
 
 ## 주요 기능
