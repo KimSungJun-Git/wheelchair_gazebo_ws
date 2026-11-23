@@ -11,6 +11,8 @@ Package: wheelchair_control
 """
 
 import math
+import json
+import time
 from typing import List, Dict, Any, Tuple, Optional, Set
 
 import numpy as np
@@ -21,6 +23,7 @@ from rclpy.duration import Duration
 from rclpy.time import Time
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
+from std_msgs.msg import String
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker, MarkerArray
@@ -56,6 +59,11 @@ class Track:
         self.v_abs: float = 0.0    # 월드 절대 속도 크기 [m/s]
         self.t_cpa: float = 0.0
         self.d_cpa: float = 0.0
+        self.observation = self.pos.copy()
+        self.observation_stamp = stamp
+        self.displacement = None
+        self.observation_dt = None
+        self.innovation = None
         self.reason: str = 'new'
         # 마지막으로 속도 기반 동적 판정을 받은 시각 [s] (멈춘 보행자 동적 유지용)
         self.last_dynamic_t: Optional[float] = None
@@ -149,6 +157,7 @@ class DynamicScanFilter(Node):
         # 한 번 동적으로 판정된 트랙은 멈춰도 이 시간 동안 동적으로 유지 (/scan_static 유입 방지)
         self.declare_parameter('dynamic_hold_sec', 5.0)
         self.declare_parameter('publish_markers', True)
+        self.declare_parameter('publish_debug', True)
 
         self.scan_topic: str = str(self.get_parameter('scan_topic').value)
         self.odom_topic: str = str(self.get_parameter('odom_topic').value)
@@ -178,6 +187,11 @@ class DynamicScanFilter(Node):
 
         self.publish_markers_enabled: bool = bool(self.get_parameter('publish_markers').value)
 
+        self.publish_debug_enabled = bool(self.get_parameter('publish_debug').value)
+        self.debug_sequence = 0
+        self.debug_tf = {}
+        self.debug_odom_stamp_ns = None
+        self.debug_odom_child_frame = None
         # ---------------- state ---------------- #
         self.tracks: List[Track] = []
         self.robot_v_base: np.ndarray = np.array([0.0, 0.0], dtype=np.float64)
@@ -196,6 +210,7 @@ class DynamicScanFilter(Node):
         self.pub_scan = self.create_publisher(LaserScan, self.out_topic, sensor_qos)
         self.pub_scan_static = self.create_publisher(LaserScan, self.out_static_topic, sensor_qos)
         self.pub_marker = self.create_publisher(MarkerArray, '~/tracks', 1)
+        self.pub_debug = self.create_publisher(String, '~/debug', sensor_qos)
 
         self.create_subscription(LaserScan, self.scan_topic, self.on_scan, sensor_qos)
         self.create_subscription(Odometry, self.odom_topic, self.on_odom, 10)
@@ -212,9 +227,12 @@ class DynamicScanFilter(Node):
         self.robot_v_base = np.array([msg.twist.twist.linear.x,
                                       msg.twist.twist.linear.y], dtype=np.float64)
         self.have_odom = True
+        self.debug_odom_child_frame = msg.child_frame_id
+        self.debug_odom_stamp_ns = msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec
 
     # ------------------------------------------------------------------ #
     def on_scan(self, scan: LaserScan) -> None:
+        received_wall_ns = time.time_ns()
         now = self.stamp_to_sec(scan.header.stamp)
 
         clusters = self.segment_and_cluster(scan)
@@ -223,6 +241,7 @@ class DynamicScanFilter(Node):
         if tf_data is None:
             # TF 조회 실패 시 원본 스캔 전달 (안전 폴백)
             self.publish_scan(scan, None, passthrough_all=True)
+            self.publish_debug(scan, received_wall_ns, [], "tf-unavailable-passthrough")
             return
         rot_matrix, translation, yaw = tf_data
 
@@ -235,6 +254,7 @@ class DynamicScanFilter(Node):
         self.track_step(measurements, now)
         self.evaluate_threat(yaw, now)
         self.publish_scan(scan, self.tracks)
+        self.publish_debug(scan, received_wall_ns, measurements, "ok")
 
         if self.publish_markers_enabled:
             self.publish_markers(scan.header.stamp)
@@ -367,6 +387,11 @@ class DynamicScanFilter(Node):
             if ti in used_t or mi in used_m:
                 continue
             t = self.tracks[ti]
+            t.displacement = meas[mi]['z'] - t.observation
+            t.observation_dt = now - t.observation_stamp
+            t.innovation = meas[mi]['z'] - t.pos
+            t.observation = meas[mi]['z'].copy()
+            t.observation_stamp = now
             t.update(meas[mi]['z'], self.r_std)
             t.beams = meas[mi]['beams']
             used_t.add(ti)
@@ -528,18 +553,22 @@ class DynamicScanFilter(Node):
     #  TF 변환 도우미                                                     #
     # ------------------------------------------------------------------ #
     def lookup_odom_tf(self, laser_frame: str, stamp: Any) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
+        self.debug_tf = {"laser_lookup": "scan_stamp", "base_lookup": "latest"}
         try:
             tf_l = self.tf_buffer.lookup_transform(
                 self.odom_frame, laser_frame, stamp, timeout=Duration(seconds=0.3))
         except Exception:
+            self.debug_tf["laser_lookup"] = "latest_laser"
             try:
                 tf_l = self.tf_buffer.lookup_transform(
                     self.odom_frame, laser_frame, Time())
             except Exception:
+                self.debug_tf["laser_lookup"] = "latest_base_as_laser"
                 try:
                     tf_l = self.tf_buffer.lookup_transform(
                         self.odom_frame, self.base_frame, Time())
                 except Exception:
+                    self.debug_tf["laser_lookup"] = "unavailable"
                     self.get_logger().warn(f'TF 대기 중: {self.odom_frame} <- {laser_frame}',
                                            throttle_duration_sec=3.0)
                     return None
@@ -549,12 +578,15 @@ class DynamicScanFilter(Node):
             tf_b = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.base_frame, Time())
         except Exception:
+            self.debug_tf["base_lookup"] = "latest_base_link"
             try:
                 tf_b = self.tf_buffer.lookup_transform(
                     self.odom_frame, 'base_link', Time())
             except Exception:
+                self.debug_tf["base_lookup"] = "laser_as_base"
                 tf_b = tf_l   # 최후 폴백
 
+        self.debug_tf.update(laser=self.debug_transform(tf_l), base=self.debug_transform(tf_b))
         yaw = self.quat_to_yaw(tf_l.transform.rotation)
         c, s = math.cos(yaw), math.sin(yaw)
         Rm = np.array([[c, -s], [s, c]])
@@ -565,6 +597,57 @@ class DynamicScanFilter(Node):
                                       tf_b.transform.translation.y])
         robot_yaw = self.quat_to_yaw(tf_b.transform.rotation)
         return Rm, tvec, robot_yaw
+
+    @staticmethod
+    def debug_transform(tf):
+        t, q = tf.transform.translation, tf.transform.rotation
+        return {"parent": tf.header.frame_id, "child": tf.child_frame_id,
+                "stamp_ns": tf.header.stamp.sec * 10**9 + tf.header.stamp.nanosec,
+                "translation": [t.x, t.y, t.z], "quaternion": [q.x, q.y, q.z, q.w]}
+
+    def publish_debug(self, scan, received_wall_ns, measurements, status):
+        """Observability only: report the state actually used, never recompute decisions."""
+        if not self.publish_debug_enabled:
+            return
+        try:
+            self.debug_sequence += 1
+            tracks = []
+            if status == "ok":
+                for t in self.tracks:
+                    tracks.append({"track_id": t.id, "age": t.age, "misses_sec": t.misses,
+                        "observed_this_scan": bool(t.beams), "beam_indices": t.beams,
+                        "position_odom": t.pos.tolist(), "velocity_odom": t.vel.tolist(),
+                        "observation_odom": t.observation.tolist(),
+                        "observation_stamp_ros_sec": t.observation_stamp,
+                        "displacement_odom": None if t.displacement is None else t.displacement.tolist(),
+                        "observation_dt_sec": t.observation_dt,
+                        "innovation_odom": None if t.innovation is None else t.innovation.tolist(),
+                        "covariance": t.P.tolist(), "estimated_speed_mps": t.v_abs,
+                        "classification": "DYNAMIC" if t.is_dynamic else "STATIC" if t.is_static else "UNKNOWN",
+                        "threat": t.threat, "reason_code": t.reason,
+                        "tcpa_sec": t.t_cpa, "dcpa_m": t.d_cpa,
+                        "cpa_valid": t.reason in ("dyn-parallel", "dyn-clear", "passed", "threat", "clear"),
+                        "last_dynamic_ros_sec": t.last_dynamic_t,
+                        "confidence": None, "quality_metric": "covariance, age, misses; no calibrated confidence"})
+            payload = {"schema_version": 1, "sequence": self.debug_sequence, "status": status,
+                "scan_stamp_ns": scan.header.stamp.sec * 10**9 + scan.header.stamp.nanosec,
+                "received_wall_ns": received_wall_ns, "event_ros_ns": self.get_clock().now().nanoseconds,
+                "scan_frame": scan.header.frame_id, "tracking_frame": self.odom_frame,
+                "robot_velocity_frame": self.debug_odom_child_frame, "configured_base_frame": self.base_frame, "robot_velocity_used": self.robot_v_base.tolist(),
+                "robot_position_odom_used": self.robot_p_odom.tolist(), "have_odom": self.have_odom,
+                "odom_stamp_ns": self.debug_odom_stamp_ns, "tf_used": self.debug_tf,
+                "thresholds": {"max_range": self.max_range, "v_dynamic": self.v_dynamic_thresh,
+                    "v_static": self.v_static, "tcpa_max": self.tcpa_max, "dcpa_max": self.dcpa_max,
+                    "dynamic_hold_sec": self.dynamic_hold_sec, "gate_radius": self.gate,
+                    "min_age_frames": self.min_age, "track_timeout": self.track_timeout,
+                    "q_accel": self.q_accel, "r_std": self.r_std, "seg_gap": self.seg_gap,
+                    "min_seg_points": self.min_seg_pts, "max_cluster_width": self.max_width,
+                    "merge_dist": self.merge_dist, "max_merged_width": self.max_merged_width},
+                "measurements": [{"position_odom": m["z"].tolist(), "beams": m["beams"]} for m in measurements],
+                "tracks": tracks}
+            self.pub_debug.publish(String(data=json.dumps(payload, allow_nan=False)))
+        except Exception as e:
+            self.get_logger().warn(f'debug publication failed: {e}', throttle_duration_sec=5.0)
 
     @staticmethod
     def quat_to_yaw(q: Any) -> float:

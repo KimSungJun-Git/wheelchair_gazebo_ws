@@ -344,19 +344,17 @@ class SafetyStopNode(Node):
         """Nav2 cmd_vel을 공통 안전 필터로 검사한 뒤 지정된 토픽으로 출력"""
 
         # 1) 비상 정지 (IMU 충격, 위치 분실, 라이다 초근접 등)
-        if self.is_emergency:
-            # 단, 라이다 전방 초근접 위험뿐인 경우: 전진(linear.x > 0)만 차단하고 회전 및 후진 탈출은 허용
-            if set(self.dangerous_sensors) == {'lidar_emergency'}:
-                if msg.linear.x > 0.0:
-                    safe_msg = Twist()
-                    safe_msg.angular.z = msg.angular.z
-                    publisher.publish(safe_msg)
-                    self.publish_action(source, 'modified', 'lidar_emergency')
-                    return
-            else:
-                publisher.publish(Twist())
-                self.publish_action(source, 'blocked', ','.join(self.dangerous_sensors))
-                return
+        lidar_only = self.is_emergency and set(self.dangerous_sensors) == {'lidar_emergency'}
+        if self.is_emergency and not lidar_only:
+            publisher.publish(Twist())
+            self.publish_action(source, 'blocked', ','.join(self.dangerous_sensors))
+            return
+
+        # 전방 초근접 위험에서는 전진과 회전을 차단하고 직선 후진은 허용한다.
+        if lidar_only and msg.linear.x > 0.0:
+            publisher.publish(Twist())
+            self.publish_action(source, 'modified', 'lidar_emergency')
+            return
         
         # 2) 전진 명령 필터링
         safe_msg = Twist()
@@ -365,7 +363,7 @@ class SafetyStopNode(Node):
         safe_msg.linear.z = msg.linear.z
         safe_msg.angular.x = msg.angular.x
         safe_msg.angular.y = msg.angular.y
-        safe_msg.angular.z = msg.angular.z
+        safe_msg.angular.z = 0.0 if lidar_only else msg.angular.z
 
         # 2-1) 동적 장애물 위협(CPA 기반) 정지: 보행자가 다가오면 완전 정지 (전진 및 회전 완전 차단, 정면 고정)
         if self.threat_state == 'STOP':
@@ -406,7 +404,10 @@ class SafetyStopNode(Node):
 
         # 3) 정상 통과
         publisher.publish(safe_msg)
-        self.publish_action(source, 'allowed', '')
+        if lidar_only and msg.angular.z != 0.0:
+            self.publish_action(source, 'modified', 'lidar_emergency')
+        else:
+            self.publish_action(source, 'allowed', '')
 
     def publish_action(self, source, action, reason, force=False):
         """상태가 바뀐 순간에만 발행. 같은 상태 반복은 heartbeat가 1Hz로 담당."""
